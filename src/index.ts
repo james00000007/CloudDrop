@@ -159,33 +159,31 @@ async function handleRoomId(request: Request): Promise<Response> {
  * Generate a room ID from an IP address
  * IPv4: uses first 3 octets (/24 network)
  * IPv6: uses first 4 groups (/64 network prefix)
+ * Local: uses 'localhost' as seed for consistent local room
  */
 async function generateRoomId(ip: string): Promise<string> {
-  // For local development, use a fixed room
-  if (ip === 'default' || ip === '127.0.0.1' || ip === '::1') {
-    return 'local-dev-room';
-  }
-
   let networkPart: string;
 
-  // Check if IPv4
-  if (ip.includes('.') && !ip.includes(':')) {
+  // For local development, use 'localhost' as seed
+  // This generates a valid shareable room code instead of 'local-dev-room'
+  if (ip === 'default' || ip === '127.0.0.1' || ip === '::1') {
+    networkPart = 'localhost';
+  } else if (ip.includes('.') && !ip.includes(':')) {
+    // IPv4: use first 3 octets for /24 network
     const parts = ip.split('.');
     if (parts.length === 4) {
-      // Use first 3 octets for /24 network
       networkPart = parts.slice(0, 3).join('.');
     } else {
       networkPart = ip;
     }
   } else {
     // IPv6 - extract network prefix (first 64 bits = first 4 groups)
-    // Expand abbreviated IPv6 and take first 4 groups
     const expanded = expandIPv6(ip);
     const groups = expanded.split(':');
     networkPart = groups.slice(0, 4).join(':');
   }
 
-  // Hash the network portion
+  // Hash the network portion to generate room ID
   const encoder = new TextEncoder();
   const data = encoder.encode(networkPart);
   const hash = await crypto.subtle.digest('SHA-256', data);
