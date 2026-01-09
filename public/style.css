@@ -356,6 +356,78 @@ body::before {
   max-width: 100%;
 }
 
+/* ============================================
+   Connection Mode Badge (on peer card)
+   ============================================ */
+.connection-mode-badge {
+  position: absolute;
+  top: var(--space-sm);
+  left: var(--space-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  transition: all var(--transition-normal);
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.connection-mode-badge[data-mode="p2p"],
+.connection-mode-badge[data-mode="relay"],
+.connection-mode-badge[data-mode="connecting"] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* P2P mode - green */
+.connection-mode-badge[data-mode="p2p"] {
+  background: rgba(52, 211, 153, 0.2);
+  color: var(--status-success);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.3);
+}
+
+/* Relay mode - blue */
+.connection-mode-badge[data-mode="relay"] {
+  background: rgba(96, 165, 250, 0.2);
+  color: var(--accent-primary);
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.3);
+}
+
+/* Connecting state - orange */
+.connection-mode-badge[data-mode="connecting"] {
+  background: rgba(251, 191, 36, 0.2);
+  color: var(--status-warning);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
+}
+
+.connection-mode-badge .mode-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+}
+
+.connection-mode-badge .mode-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Hide text - icon only */
+.connection-mode-badge .mode-text {
+  display: none;
+}
+
+/* Spin animation for connecting icon */
+.connection-mode-badge .mode-icon .spin {
+  animation: spin 1s linear infinite;
+}
+
 .peer-action-btn {
   position: absolute;
   top: var(--space-sm);
@@ -593,8 +665,54 @@ body::before {
 .transfer-stats {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: var(--font-size-sm);
   color: var(--text-muted);
+}
+
+/* ============================================
+   Transfer Mode Indicator (in transfer modal)
+   ============================================ */
+.transfer-mode-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  transition: all var(--transition-normal);
+}
+
+/* P2P mode styling - green */
+.transfer-mode-indicator[data-mode="p2p"] {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--status-success);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+/* Relay mode styling - blue */
+.transfer-mode-indicator[data-mode="relay"] {
+  background: rgba(96, 165, 250, 0.12);
+  color: var(--accent-primary);
+  border: 1px solid rgba(96, 165, 250, 0.25);
+}
+
+.transfer-mode-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+
+.transfer-mode-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.transfer-mode-text {
+  white-space: nowrap;
 }
 
 /* ============================================
@@ -1125,6 +1243,17 @@ body::before {
     margin-top: 2px;
   }
   
+  /* 移动端 connection mode badge */
+  .connection-mode-badge {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .connection-mode-badge .mode-icon {
+    width: 10px;
+    height: 10px;
+  }
+
   /* 移动端 peer 操作按钮 - 更大触摸区域 */
   .peer-action-btn {
     opacity: 1;

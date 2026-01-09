@@ -104,9 +104,16 @@ class CloudDrop {
       send: (msg) => this.ws.readyState === WebSocket.OPEN && this.ws.send(JSON.stringify(msg))
     });
 
-    this.webrtc.onProgress = (p) => ui.updateTransferProgress({
-      fileName: p.fileName, fileSize: p.fileSize, percent: p.percent, speed: p.speed
-    });
+    this.webrtc.onProgress = (p) => {
+      const isRelayMode = this.webrtc.relayMode.get(p.peerId) || false;
+      ui.updateTransferProgress({
+        fileName: p.fileName, 
+        fileSize: p.fileSize, 
+        percent: p.percent, 
+        speed: p.speed,
+        mode: isRelayMode ? 'relay' : 'p2p'
+      });
+    };
 
     this.webrtc.onFileReceived = (peerId, name, blob) => {
       ui.hideModal('transferModal');
@@ -119,9 +126,10 @@ class CloudDrop {
 
     this.webrtc.onFileRequest = (peerId, info) => {
       const peer = this.peers.get(peerId);
+      const isRelayMode = this.webrtc.relayMode.get(peerId) || false;
       document.getElementById('receivePrompt').textContent = 
         `${peer?.name || '未知设备'} 想发送 "${info.name}" (${ui.formatFileSize(info.size)})`;
-      ui.showReceivingModal(info.name, info.size);
+      ui.showReceivingModal(info.name, info.size, isRelayMode ? 'relay' : 'p2p');
     };
 
     this.webrtc.onTextReceived = (peerId, text) => {
@@ -150,17 +158,28 @@ class CloudDrop {
       
       switch (status) {
         case 'connecting':
-          ui.showPersistentToast(toastId, message, 'loading');
+          // Only show toast if message is provided (user-initiated action)
+          // Otherwise just update the badge silently
+          if (message) {
+            ui.showPersistentToast(toastId, message, 'loading');
+          }
+          ui.updatePeerConnectionMode(peerId, 'connecting');
           break;
         case 'slow':
-          ui.updatePersistentToast(toastId, message, 'warning');
+          if (message) {
+            ui.updatePersistentToast(toastId, message, 'warning');
+          }
           break;
         case 'relay':
           ui.hidePersistentToast(toastId);
-          ui.showToast(message, 'info');
+          if (message) {
+            ui.showToast(message, 'info');
+          }
+          ui.updatePeerConnectionMode(peerId, 'relay');
           break;
         case 'connected':
           ui.hidePersistentToast(toastId);
+          ui.updatePeerConnectionMode(peerId, 'p2p');
           break;
       }
     };
@@ -281,7 +300,9 @@ class CloudDrop {
 
   async sendFiles(peerId, files) {
     for (const file of files) {
-      ui.showSendingModal(file.name, file.size);
+      // Determine transfer mode
+      const isRelayMode = this.webrtc.relayMode.get(peerId) || false;
+      ui.showSendingModal(file.name, file.size, isRelayMode ? 'relay' : 'p2p');
       try {
         await this.webrtc.sendFile(peerId, file);
         ui.hideModal('transferModal');
@@ -363,7 +384,7 @@ class CloudDrop {
       return;
     }
     
-    messages.forEach(msg => {
+    messages.forEach((msg, index) => {
       const msgEl = document.createElement('div');
       let statusClass = msg.type;
       if (msg.sending) statusClass += ' sending';
@@ -378,6 +399,13 @@ class CloudDrop {
         <div class="chat-bubble">${ui.escapeHtml(msg.text)}</div>
         <div class="chat-time">${statusText}</div>
       `;
+      
+      // Add click event for retry on failed messages
+      if (msg.failed) {
+        msgEl.style.cursor = 'pointer';
+        msgEl.addEventListener('click', () => this.retryMessage(peerId, index));
+      }
+      
       container.appendChild(msgEl);
     });
     
@@ -398,6 +426,32 @@ class CloudDrop {
     
     const date = new Date(timestamp);
     return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  async retryMessage(peerId, messageIndex) {
+    const messages = this.getMessageHistory(peerId);
+    const msg = messages[messageIndex];
+    
+    if (!msg || !msg.failed) return;
+    
+    // Reset status to sending
+    msg.failed = false;
+    msg.sending = true;
+    msg.timestamp = Date.now();
+    this.renderChatHistory(peerId);
+    
+    try {
+      await this.webrtc.sendText(peerId, msg.text);
+      // Mark as sent
+      msg.sending = false;
+      this.renderChatHistory(peerId);
+    } catch (e) {
+      // Mark as failed again
+      msg.sending = false;
+      msg.failed = true;
+      this.renderChatHistory(peerId);
+      ui.showToast(`重试失败: ${e.message}`, 'error');
+    }
   }
 
   updateUnreadBadge(peerId) {

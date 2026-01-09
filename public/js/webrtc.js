@@ -251,8 +251,9 @@ export class WebRTCManager {
   }
 
   /**
-   * Prewarm connection to a peer (background, non-blocking)
+   * Prewarm connection to a peer (background, non-blocking, SILENT)
    * Called when a new peer is discovered to reduce latency for first transfer
+   * Does not show any UI notifications - completely silent operation
    */
   prewarmConnection(peerId) {
     if (!this.prewarmEnabled || this.knownPeers.has(peerId)) {
@@ -265,8 +266,9 @@ export class WebRTCManager {
     setTimeout(() => {
       // Only prewarm if no active connection/attempt exists
       if (!this.connections.has(peerId) && !this.pendingConnections.has(peerId)) {
-        console.log(`[WebRTC] Prewarming connection to ${peerId}`);
-        this.createOffer(peerId).catch(err => {
+        console.log(`[WebRTC] Prewarming connection to ${peerId} (silent)`);
+        // Use silent offer to avoid showing toast notifications
+        this._createOfferSilent(peerId).catch(err => {
           console.log(`[WebRTC] Prewarm failed for ${peerId}: ${err.message}`);
           // Prewarm failure is not critical, will retry on actual send
         });
@@ -479,7 +481,7 @@ export class WebRTCManager {
         if (pc.iceConnectionState === 'disconnected') {
           console.log(`[WebRTC] ICE still disconnected, fast-switching to relay...`);
           // Don't attempt ICE restart, just switch to relay
-          this._switchToRelay(peerId, '连接中断，已切换到中继传输');
+          this._switchToRelay(peerId, 'P2P连接失败，已切换到中继传输');
         }
       }, DISCONNECTED_TIMEOUT);
       this.disconnectedTimers.set(peerId, timer);
@@ -528,7 +530,8 @@ export class WebRTCManager {
 
   /**
    * Schedule a background attempt to recover P2P connection
-   * This runs periodically while in relay mode
+   * Uses exponential backoff to avoid frequent retries
+   * Runs silently without changing UI state
    */
   _scheduleP2PRecovery(peerId) {
     // Clear any existing recovery timer
@@ -540,32 +543,42 @@ export class WebRTCManager {
     if (!this._p2pRecoveryTimers) {
       this._p2pRecoveryTimers = new Map();
     }
+    if (!this._p2pRecoveryAttempts) {
+      this._p2pRecoveryAttempts = new Map();
+    }
     
-    // Attempt P2P recovery after 30 seconds
-    const P2P_RECOVERY_INTERVAL = 30000;
+    // Exponential backoff: 30s, 60s, 120s, 240s, max 5min
+    const attempts = this._p2pRecoveryAttempts.get(peerId) || 0;
+    const BASE_INTERVAL = 30000; // 30 seconds
+    const MAX_INTERVAL = 300000; // 5 minutes
+    const interval = Math.min(BASE_INTERVAL * Math.pow(2, attempts), MAX_INTERVAL);
+    
+    console.log(`[WebRTC] Scheduling P2P recovery for ${peerId} in ${interval/1000}s (attempt ${attempts + 1})`);
     
     const timer = setTimeout(async () => {
       if (!this.relayMode.get(peerId)) {
+        this._p2pRecoveryAttempts.delete(peerId);
         return; // Already recovered or peer gone
       }
       
-      console.log(`[WebRTC] Attempting P2P recovery for ${peerId}`);
+      console.log(`[WebRTC] Silent P2P recovery attempt for ${peerId}`);
       
       // Clean up old connection state
       this.candidateTypes.delete(peerId);
       this.connectionQuality.delete(peerId);
       this.iceRestartCounts.delete(peerId);
       
-      // Close existing connection if any
+      // Close existing P2P connection if any (but keep relay working)
       const oldPc = this.connections.get(peerId);
       if (oldPc) {
         oldPc.close();
         this.connections.delete(peerId);
       }
+      this.dataChannels.delete(peerId);
       
       try {
-        // Try to create a new P2P connection
-        await this.createOffer(peerId);
+        // Try to create a new P2P connection SILENTLY (no UI notification)
+        await this._createOfferSilent(peerId);
         
         // Wait briefly to see if P2P establishes
         await new Promise(r => setTimeout(r, 5000));
@@ -574,7 +587,8 @@ export class WebRTCManager {
         if (dc && dc.readyState === 'open') {
           // P2P recovered!
           this.relayMode.delete(peerId);
-          this._notifyConnectionState(peerId, 'connected', 'P2P连接已恢复');
+          this._p2pRecoveryAttempts.delete(peerId);
+          this._notifyConnectionState(peerId, 'connected', null);
           console.log(`[WebRTC] P2P recovered for ${peerId}`);
           return;
         }
@@ -582,11 +596,39 @@ export class WebRTCManager {
         console.log(`[WebRTC] P2P recovery failed for ${peerId}: ${err.message}`);
       }
       
-      // Schedule next recovery attempt
+      // Increment attempt count and schedule next recovery
+      this._p2pRecoveryAttempts.set(peerId, attempts + 1);
       this._scheduleP2PRecovery(peerId);
-    }, P2P_RECOVERY_INTERVAL);
+    }, interval);
     
     this._p2pRecoveryTimers.set(peerId, timer);
+  }
+
+  /**
+   * Create offer silently (for background P2P recovery)
+   * Does not trigger UI notifications
+   */
+  async _createOfferSilent(peerId) {
+    this.makingOffer.set(peerId, true);
+    
+    try {
+      const pc = await this.createConnection(peerId);
+      const channel = pc.createDataChannel('file-transfer', { ordered: true });
+      this.setupDataChannel(peerId, channel);
+
+      const publicKey = await cryptoManager.exportPublicKey();
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      console.log(`[WebRTC] Sending silent recovery offer to ${peerId}`);
+      this.signaling.send({
+        type: 'offer',
+        to: peerId,
+        data: { sdp: offer, publicKey }
+      });
+    } finally {
+      this.makingOffer.set(peerId, false);
+    }
   }
 
   /**
@@ -669,6 +711,8 @@ export class WebRTCManager {
       console.log(`[WebRTC] DataChannel opened with ${peerId}`);
       // Reset relay mode when direct channel opens
       this.relayMode.delete(peerId);
+      // Notify UI that P2P connection is established (for both sender and receiver)
+      this._notifyConnectionState(peerId, 'connected', null);
     };
     
     channel.onmessage = (e) => this.handleMessage(peerId, e.data);
@@ -687,15 +731,18 @@ export class WebRTCManager {
     this.makingOffer.set(peerId, true);
     
     try {
-      const pc = await this.createConnection(peerId);
-      
-      // Check if we already have a data channel
+      // Check if we already have a working data channel - skip if so
       if (this.dataChannels.has(peerId)) {
         const dc = this.dataChannels.get(peerId);
         if (dc.readyState === 'open' || dc.readyState === 'connecting') {
           return; // Already have a working channel
         }
       }
+      
+      // Notify UI that we're connecting (only if we're actually creating new connection)
+      this._notifyConnectionState(peerId, 'connecting', '正在建立连接...');
+      
+      const pc = await this.createConnection(peerId);
 
       const channel = pc.createDataChannel('file-transfer', { ordered: true });
       this.setupDataChannel(peerId, channel);
@@ -725,6 +772,17 @@ export class WebRTCManager {
   // Handle offer with Perfect Negotiation
   async handleOffer(peerId, data) {
     console.log(`[WebRTC] Received offer from ${peerId}`);
+    
+    // Update badge only (no toast) for incoming offers
+    // Toast is only shown when user actively initiates a transfer
+    const existingChannel = this.dataChannels.get(peerId);
+    const isInRelayMode = this.relayMode.get(peerId);
+    if (!existingChannel || existingChannel.readyState !== 'open') {
+      if (!isInRelayMode) {
+        // Silent update - only badge, no toast
+        this._notifyConnectionState(peerId, 'connecting', null);
+      }
+    }
     
     const pc = await this.createConnection(peerId);
     const isPolite = this._isPolite(peerId);
@@ -994,6 +1052,8 @@ export class WebRTCManager {
     if (!this.relayMode.get(peerId)) {
       console.log(`[WebRTC] Received relay data from ${peerId}, switching to relay mode`);
       this.relayMode.set(peerId, true);
+      // Notify UI that we're in relay mode (receiver side)
+      this._notifyConnectionState(peerId, 'relay', '使用中继传输');
     }
 
     if (data.type === 'file-start') {
@@ -1191,7 +1251,7 @@ export class WebRTCManager {
       // Show "slow connection" hint after threshold
       const slowTimer = setTimeout(() => {
         if (!racingState.resolved) {
-          this._notifyConnectionState(peerId, 'slow', '网络较慢，尝试备用通道...');
+          this._notifyConnectionState(peerId, 'slow', '网络较慢，尝试中继传输...');
         }
       }, SLOW_CONNECTION_THRESHOLD);
       
@@ -1297,11 +1357,12 @@ export class WebRTCManager {
       this.disconnectedTimers.delete(peerId);
     }
     
-    // Clear P2P recovery timer
+    // Clear P2P recovery timer and attempts
     if (this._p2pRecoveryTimers?.has(peerId)) {
       clearTimeout(this._p2pRecoveryTimers.get(peerId));
       this._p2pRecoveryTimers.delete(peerId);
     }
+    this._p2pRecoveryAttempts?.delete(peerId);
     
     this.dataChannels.get(peerId)?.close();
     this.connections.get(peerId)?.close();

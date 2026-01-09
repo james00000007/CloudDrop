@@ -74,6 +74,13 @@ export function generateDisplayName() {
   return adj[Math.floor(Math.random() * adj.length)] + noun[Math.floor(Math.random() * noun.length)];
 }
 
+// Connection mode icons
+export const connectionModeIcons = {
+  p2p: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="12" r="3"/><circle cx="18" cy="12" r="3"/><path d="M9 12h6"/></svg>`,
+  relay: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><path d="M7 12h2M15 12h2M12 8v2"/></svg>`,
+  connecting: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/></svg>`
+};
+
 // Create peer card
 export function createPeerCard(peer) {
   const card = document.createElement('div');
@@ -83,6 +90,10 @@ export function createPeerCard(peer) {
   const labels = { desktop: '桌面设备', mobile: '手机', tablet: '平板' };
   card.innerHTML = `
     <div class="peer-avatar ${peer.deviceType}">${icon}</div>
+    <div class="connection-mode-badge" data-mode="none" title="等待连接">
+      <span class="mode-icon"></span>
+      <span class="mode-text"></span>
+    </div>
     <span class="peer-name">${escapeHtml(peer.name)}</span>
     <span class="peer-device">${labels[peer.deviceType] || '设备'}</span>
     <span class="peer-browser">${escapeHtml(peer.browserInfo || '')}</span>
@@ -91,6 +102,44 @@ export function createPeerCard(peer) {
     </button>
   `;
   return card;
+}
+
+/**
+ * Update connection mode indicator on peer card
+ * @param {string} peerId - Peer ID
+ * @param {'p2p'|'relay'|'connecting'|'none'} mode - Connection mode
+ */
+export function updatePeerConnectionMode(peerId, mode) {
+  const card = document.querySelector(`[data-peer-id="${peerId}"]`);
+  if (!card) return;
+  
+  const badge = card.querySelector('.connection-mode-badge');
+  if (!badge) return;
+  
+  badge.dataset.mode = mode;
+  
+  const modeConfig = {
+    p2p: {
+      icon: connectionModeIcons.p2p,
+      title: 'P2P 直连 - 点对点直连传输，速度快，隐私性最好'
+    },
+    relay: {
+      icon: connectionModeIcons.relay,
+      title: '中继传输 - 通过服务器中继，连接更稳定可靠'
+    },
+    connecting: {
+      icon: connectionModeIcons.connecting,
+      title: '正在建立连接...'
+    },
+    none: {
+      icon: '',
+      title: '等待连接'
+    }
+  };
+  
+  const config = modeConfig[mode] || modeConfig.none;
+  badge.querySelector('.mode-icon').innerHTML = config.icon;
+  badge.title = config.title;
 }
 
 // Add peer to grid
@@ -157,7 +206,7 @@ export function setupModalCloseHandlers() {
 }
 
 // Transfer progress
-export function updateTransferProgress({ fileName, fileSize, percent, speed }) {
+export function updateTransferProgress({ fileName, fileSize, percent, speed, mode }) {
   if (fileName !== undefined) document.getElementById('transferFileName').textContent = fileName;
   if (fileSize !== undefined) document.getElementById('transferFileSize').textContent = formatFileSize(fileSize);
   if (percent !== undefined) {
@@ -165,17 +214,45 @@ export function updateTransferProgress({ fileName, fileSize, percent, speed }) {
     document.getElementById('transferPercent').textContent = `${Math.round(percent)}%`;
   }
   if (speed !== undefined) document.getElementById('transferSpeed').textContent = formatSpeed(speed);
+  
+  // Update transfer mode indicator
+  if (mode !== undefined) {
+    updateTransferModeIndicator(mode);
+  }
 }
 
-export function showSendingModal(fileName, fileSize) {
+/**
+ * Update transfer mode indicator in transfer modal
+ * @param {'p2p'|'relay'} mode - Transfer mode
+ */
+export function updateTransferModeIndicator(mode) {
+  const indicator = document.getElementById('transferModeIndicator');
+  if (!indicator) return;
+  
+  indicator.dataset.mode = mode;
+  const modeIcon = indicator.querySelector('.transfer-mode-icon');
+  const modeText = indicator.querySelector('.transfer-mode-text');
+  
+  if (mode === 'p2p') {
+    modeIcon.innerHTML = connectionModeIcons.p2p;
+    modeText.textContent = 'P2P 直连';
+    indicator.title = '点对点直连传输，速度快，隐私性最好';
+  } else {
+    modeIcon.innerHTML = connectionModeIcons.relay;
+    modeText.textContent = '中继传输';
+    indicator.title = '通过服务器中继，更稳定可靠';
+  }
+}
+
+export function showSendingModal(fileName, fileSize, mode = 'p2p') {
   document.getElementById('modalTitle').textContent = '正在发送';
-  updateTransferProgress({ fileName, fileSize, percent: 0, speed: 0 });
+  updateTransferProgress({ fileName, fileSize, percent: 0, speed: 0, mode });
   showModal('transferModal');
 }
 
-export function showReceivingModal(fileName, fileSize) {
+export function showReceivingModal(fileName, fileSize, mode = 'p2p') {
   document.getElementById('modalTitle').textContent = '正在接收';
-  updateTransferProgress({ fileName, fileSize, percent: 0, speed: 0 });
+  updateTransferProgress({ fileName, fileSize, percent: 0, speed: 0, mode });
   showModal('transferModal');
 }
 
