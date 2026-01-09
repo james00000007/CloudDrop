@@ -2,6 +2,52 @@
  * CloudDrop - UI Utilities Module
  */
 
+/**
+ * Generate QR code and draw to canvas using qrcode-generator library
+ * @param {HTMLCanvasElement} canvas - Canvas element
+ * @param {string} text - Text to encode
+ * @param {Object} options - Options
+ */
+export function generateQRCode(canvas, text, options = {}) {
+  const {
+    size = 160,
+    darkColor = '#000000',
+    lightColor = '#ffffff'
+  } = options;
+  
+  // Use qrcode-generator library (loaded via CDN)
+  // Type 0 = auto-detect version, 'M' = medium error correction
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  
+  const ctx = canvas.getContext('2d');
+  canvas.width = size;
+  canvas.height = size;
+  
+  const moduleCount = qr.getModuleCount();
+  const cellSize = size / moduleCount;
+  
+  // Draw background
+  ctx.fillStyle = lightColor;
+  ctx.fillRect(0, 0, size, size);
+  
+  // Draw modules
+  ctx.fillStyle = darkColor;
+  for (let row = 0; row < moduleCount; row++) {
+    for (let col = 0; col < moduleCount; col++) {
+      if (qr.isDark(row, col)) {
+        ctx.fillRect(
+          col * cellSize,
+          row * cellSize,
+          cellSize + 0.5,
+          cellSize + 0.5
+        );
+      }
+    }
+  }
+}
+
 // Device Icons
 export const deviceIcons = {
   desktop: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,

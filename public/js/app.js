@@ -396,9 +396,24 @@ class CloudDrop {
       if (msg.failed) statusText = '发送失败 · 点击重试';
       
       msgEl.innerHTML = `
-        <div class="chat-bubble">${ui.escapeHtml(msg.text)}</div>
+        <div class="chat-bubble-wrapper">
+          <div class="chat-bubble">${ui.escapeHtml(msg.text)}</div>
+          <button class="chat-copy-btn" title="复制消息">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+          </button>
+        </div>
         <div class="chat-time">${statusText}</div>
       `;
+      
+      // Add copy button functionality
+      const copyBtn = msgEl.querySelector('.chat-copy-btn');
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.copyMessageText(msg.text, copyBtn);
+      });
       
       // Add click event for retry on failed messages
       if (msg.failed) {
@@ -426,6 +441,22 @@ class CloudDrop {
     
     const date = new Date(timestamp);
     return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  async copyMessageText(text, btn) {
+    try {
+      await navigator.clipboard.writeText(text);
+      // Show success feedback
+      btn.classList.add('copied');
+      const originalTitle = btn.title;
+      btn.title = '已复制';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.title = originalTitle;
+      }, 1500);
+    } catch (e) {
+      ui.showToast('复制失败', 'error');
+    }
   }
 
   async retryMessage(peerId, messageIndex) {
@@ -509,12 +540,8 @@ class CloudDrop {
       }
     });
 
-    // Room code copy
-    document.getElementById('copyRoomCode')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(this.roomCode);
-      this.triggerHaptic('light');
-      ui.showToast('房间号已复制', 'success');
-    });
+    // Desktop share popover
+    this.setupDesktopSharePopover();
 
     // Mobile bottom navigation
     this.setupMobileNavigation();
@@ -641,6 +668,100 @@ class CloudDrop {
         e.preventDefault();
         const btn = document.getElementById('sendChatMessage');
         if (btn) btn.click();
+      }
+    });
+  }
+
+  // Desktop share popover setup
+  setupDesktopSharePopover() {
+    const shareBtn = document.getElementById('shareRoomBtn');
+    const roomCodeEl = document.getElementById('roomCode');
+    const popover = document.getElementById('sharePopover');
+    const closeBtn = document.getElementById('sharePopoverClose');
+    const copyCodeBtn = document.getElementById('sharePopoverCopyCode');
+    const copyLinkBtn = document.getElementById('sharePopoverCopyLink');
+    
+    if (!shareBtn || !popover) return;
+    
+    // Create overlay for click-outside-to-close
+    let overlay = document.querySelector('.share-popover-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'share-popover-overlay';
+      document.body.appendChild(overlay);
+    }
+    
+    const showPopover = () => {
+      // Update room code display
+      document.getElementById('sharePopoverRoomCode').textContent = this.roomCode || '-';
+      
+      // Generate QR code
+      const canvas = document.getElementById('shareQRCode');
+      if (canvas && this.roomCode) {
+        const url = new URL(location.href);
+        url.searchParams.set('room', this.roomCode);
+        ui.generateQRCode(canvas, url.toString(), { size: 160 });
+      }
+      
+      popover.classList.add('active');
+      overlay.classList.add('active');
+    };
+    
+    const hidePopover = () => {
+      popover.classList.remove('active');
+      overlay.classList.remove('active');
+    };
+    
+    // Toggle popover on share button click
+    shareBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (popover.classList.contains('active')) {
+        hidePopover();
+      } else {
+        showPopover();
+      }
+    });
+    
+    // Also open popover when clicking room code (desktop only)
+    roomCodeEl?.addEventListener('click', (e) => {
+      if (window.innerWidth > 640) {
+        e.stopPropagation();
+        showPopover();
+      }
+    });
+    
+    // Close button
+    closeBtn?.addEventListener('click', hidePopover);
+    
+    // Click outside to close
+    overlay.addEventListener('click', hidePopover);
+    
+    // Copy room code
+    copyCodeBtn?.addEventListener('click', () => {
+      navigator.clipboard.writeText(this.roomCode);
+      ui.showToast('房间号已复制', 'success');
+      
+      // Visual feedback
+      copyCodeBtn.classList.add('copied');
+      setTimeout(() => copyCodeBtn.classList.remove('copied'), 1000);
+    });
+    
+    // Copy link
+    copyLinkBtn?.addEventListener('click', () => {
+      const url = new URL(location.href);
+      url.searchParams.set('room', this.roomCode);
+      navigator.clipboard.writeText(url.toString());
+      ui.showToast('链接已复制', 'success');
+      
+      // Visual feedback
+      copyLinkBtn.classList.add('copied');
+      setTimeout(() => copyLinkBtn.classList.remove('copied'), 1000);
+    });
+    
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && popover.classList.contains('active')) {
+        hidePopover();
       }
     });
   }

@@ -795,6 +795,22 @@ body::before {
   padding: var(--space-xs) var(--space-md);
   background: var(--bg-glass);
   border-radius: var(--radius-full);
+  transition: all var(--transition-fast);
+}
+
+/* Desktop: make room code clickable */
+@media (min-width: 641px) {
+  .room-code {
+    cursor: pointer;
+    padding: 2px 6px;
+    margin: -2px 0;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+  }
+  
+  .room-code:hover {
+    background: rgba(96, 165, 250, 0.15);
+  }
 }
 
 .device-name-info {
@@ -1416,6 +1432,24 @@ body::before {
     max-width: 85%;
   }
   
+  /* Mobile: always show copy button */
+  .chat-copy-btn {
+    opacity: 0.6;
+    transform: scale(1);
+    width: 32px;
+    height: 32px;
+  }
+  
+  .chat-copy-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .chat-copy-btn:active {
+    opacity: 1;
+    background: var(--bg-glass-hover);
+  }
+  
   .chat-input-container {
     padding: var(--space-md);
     padding-bottom: calc(var(--space-md) + var(--safe-area-bottom));
@@ -1894,9 +1928,83 @@ body::before {
 .chat-message.sent { align-self: flex-end; }
 .chat-message.received { align-self: flex-start; }
 
-.chat-bubble { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-lg); word-wrap: break-word; }
+.chat-bubble-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+.chat-message.sent .chat-bubble-wrapper {
+  flex-direction: row-reverse;
+}
+
+.chat-bubble { 
+  padding: var(--space-sm) var(--space-md); 
+  border-radius: var(--radius-lg); 
+  word-wrap: break-word;
+  min-width: 0;
+  flex: 0 1 auto;
+}
 .chat-message.sent .chat-bubble { background: var(--accent-gradient); color: white; }
 .chat-message.received .chat-bubble { background: var(--bg-glass); color: var(--text-primary); }
+
+/* Copy button */
+.chat-copy-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-glass);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: all var(--transition-fast);
+}
+
+.chat-copy-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Desktop: show on hover */
+.chat-message:hover .chat-copy-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.chat-copy-btn:hover {
+  background: var(--bg-glass-hover);
+  color: var(--text-primary);
+  border-color: rgba(96, 165, 250, 0.3);
+}
+
+.chat-copy-btn:active {
+  transform: scale(0.95) !important;
+}
+
+/* Copied state */
+.chat-copy-btn.copied {
+  background: rgba(52, 211, 153, 0.2);
+  color: var(--status-success);
+  border-color: rgba(52, 211, 153, 0.4);
+  opacity: 1;
+  transform: scale(1);
+}
+
+.chat-copy-btn.copied svg {
+  animation: copySuccess 0.3s ease;
+}
+
+@keyframes copySuccess {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
 
 .chat-time { font-size: 11px; color: var(--text-muted); margin-top: var(--space-xs); }
 
@@ -1940,6 +2048,177 @@ body::before {
 
 /* Input disabled state */
 .chat-input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ============================================
+   Desktop Share Popover
+   ============================================ */
+.share-popover {
+  position: fixed;
+  top: 70px;
+  right: var(--space-xl);
+  width: 320px;
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg), 0 0 40px rgba(0, 0, 0, 0.3);
+  z-index: 1500;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px) scale(0.95);
+  transition: all var(--transition-normal);
+}
+
+.share-popover.active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.share-popover-arrow {
+  position: absolute;
+  top: -8px;
+  right: 80px;
+  width: 16px;
+  height: 16px;
+  background: var(--bg-secondary);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  transform: rotate(45deg);
+}
+
+.share-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.share-popover-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.share-popover-close {
+  width: 28px;
+  height: 28px;
+  background: var(--bg-glass);
+  border-radius: var(--radius-sm);
+}
+
+.share-popover-body {
+  padding: var(--space-lg);
+}
+
+.share-qr-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-lg);
+  background: white;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.share-qr-container canvas {
+  display: block;
+}
+
+.share-qr-hint {
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-xs);
+  color: #666;
+}
+
+.share-room-code-display {
+  text-align: center;
+  margin-bottom: var(--space-lg);
+}
+
+.share-room-code-label {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--space-xs);
+}
+
+.share-room-code-value {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.share-popover-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.share-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-glass);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.share-action-btn:hover {
+  background: var(--bg-glass-hover);
+  color: var(--text-primary);
+  border-color: rgba(96, 165, 250, 0.3);
+}
+
+.share-action-btn:active {
+  transform: scale(0.98);
+}
+
+.share-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Copy success feedback */
+.share-action-btn.copied {
+  background: rgba(52, 211, 153, 0.2);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: var(--status-success);
+}
+
+/* Click outside overlay for share popover */
+.share-popover-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1499;
+  display: none;
+}
+
+.share-popover-overlay.active {
+  display: block;
+}
+
+/* Hide desktop share popover on mobile */
+@media (max-width: 640px) {
+  .share-popover {
+    display: none !important;
+  }
+}
 
 /* ============================================
    Mobile Bottom Navigation Bar

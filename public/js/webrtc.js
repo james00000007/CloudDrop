@@ -474,14 +474,17 @@ export class WebRTCManager {
       this.disconnectedTimers.delete(peerId);
     }
     
+    // Check if this is a background recovery attempt (already in relay mode)
+    const isBackgroundRecovery = this.relayMode.get(peerId);
+    
     if (state === 'disconnected') {
       // Wait before treating as failed - may recover
       console.log(`[WebRTC] ICE disconnected with ${peerId}, waiting for recovery...`);
       const timer = setTimeout(() => {
         if (pc.iceConnectionState === 'disconnected') {
           console.log(`[WebRTC] ICE still disconnected, fast-switching to relay...`);
-          // Don't attempt ICE restart, just switch to relay
-          this._switchToRelay(peerId, 'P2P连接失败，已切换到中继传输');
+          // Silent switch if already in background recovery mode
+          this._switchToRelay(peerId, 'P2P连接失败，已切换到中继传输', isBackgroundRecovery);
         }
       }, DISCONNECTED_TIMEOUT);
       this.disconnectedTimers.set(peerId, timer);
@@ -493,7 +496,8 @@ export class WebRTCManager {
       // If P2P wasn't likely anyway or we've already tried, just use relay
       if (!quality?.p2pLikely || restartCount >= MAX_ICE_RESTARTS) {
         console.log(`[WebRTC] ICE failed for ${peerId}, fast-switching to relay`);
-        this._switchToRelay(peerId, 'P2P连接失败，已切换到中继传输');
+        // Silent switch if already in background recovery mode
+        this._switchToRelay(peerId, 'P2P连接失败，已切换到中继传输', isBackgroundRecovery);
       } else {
         console.log(`[WebRTC] ICE failed with ${peerId}, attempting restart...`);
         this._attemptIceRestart(peerId, pc);
@@ -509,22 +513,33 @@ export class WebRTCManager {
 
   /**
    * Switch to relay mode for a peer
+   * @param {string} peerId - Peer ID
+   * @param {string} message - Message to display (null for silent switch)
+   * @param {boolean} silent - If true, don't show notification even on first switch
    */
-  _switchToRelay(peerId, message) {
-    if (!this.relayMode.get(peerId)) {
+  _switchToRelay(peerId, message, silent = false) {
+    const wasAlreadyRelay = this.relayMode.get(peerId);
+    
+    if (!wasAlreadyRelay) {
       this.relayMode.set(peerId, true);
-      this._notifyConnectionState(peerId, 'relay', message);
+      // Only notify on first switch, and only if not silent
+      if (!silent) {
+        this._notifyConnectionState(peerId, 'relay', message);
+      }
       console.log(`[WebRTC] Switched to relay mode for ${peerId}`);
-      
+
       // Resolve any pending connection with relay mode
       const racing = this.connectionRacing.get(peerId);
       if (racing && !racing.resolved) {
         racing.resolved = true;
         racing.winner = 'relay';
       }
-      
+
       // Schedule background P2P recovery attempt
       this._scheduleP2PRecovery(peerId);
+    } else {
+      // Already in relay mode - just log, no notification
+      console.log(`[WebRTC] Already in relay mode for ${peerId}, skipping notification`);
     }
   }
 
@@ -902,7 +917,8 @@ export class WebRTCManager {
     const dc = this.dataChannels.get(peerId);
     if (!dc || dc.readyState !== 'open') {
       console.log(`[WebRTC] No P2P channel available, using relay for ${peerId}`);
-      this._switchToRelay(peerId, '使用中继传输');
+      // Silent switch - already in usable state
+      this._switchToRelay(peerId, null, true);
       return this.sendFileViaRelay(peerId, file);
     }
 
@@ -1053,7 +1069,8 @@ export class WebRTCManager {
       console.log(`[WebRTC] Received relay data from ${peerId}, switching to relay mode`);
       this.relayMode.set(peerId, true);
       // Notify UI that we're in relay mode (receiver side)
-      this._notifyConnectionState(peerId, 'relay', '使用中继传输');
+      // Update badge but no toast (null message)
+      this._notifyConnectionState(peerId, 'relay', null);
     }
 
     if (data.type === 'file-start') {
@@ -1112,7 +1129,8 @@ export class WebRTCManager {
     const dc = this.dataChannels.get(peerId);
     if (!dc || dc.readyState !== 'open') {
       console.log(`[WebRTC] No P2P channel available for text, using relay for ${peerId}`);
-      this._switchToRelay(peerId, '使用中继传输');
+      // Silent switch - already in usable state
+      this._switchToRelay(peerId, null, true);
       return this._sendTextViaRelay(peerId, text);
     }
 
