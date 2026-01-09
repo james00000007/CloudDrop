@@ -62,6 +62,12 @@
           <span class="status-dot"></span>
           <span class="status-text">连接中...</span>
         </span>
+        <button class="btn-icon settings-btn" id="headerSettingsBtn" title="设置">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -212,7 +218,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h3 class="modal-title" id="modalTitle">正在传输</h3>
-          <button class="modal-close" id="modalClose">
+          <button class="modal-close" id="modalClose" title="关闭">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -234,16 +240,45 @@
             </div>
             <span id="transferSpeed">- KB/s</span>
           </div>
+          <!-- Cancel Button -->
+          <div class="transfer-actions">
+            <button class="btn btn-secondary btn-cancel-transfer" id="cancelTransfer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M15 9l-6 6M9 9l6 6"/>
+              </svg>
+              取消传输
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Receive Modal -->
+    <!-- Generic Confirm Dialog -->
+    <div class="modal" id="confirmDialog">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content confirm-dialog">
+        <div class="confirm-icon" id="confirmIcon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+        </div>
+        <h3 class="confirm-title" id="confirmTitle">确认操作</h3>
+        <p class="confirm-message" id="confirmMessage">您确定要执行此操作吗？</p>
+        <div class="confirm-actions">
+          <button class="btn btn-secondary" id="confirmCancel">取消</button>
+          <button class="btn btn-danger" id="confirmOk">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Receive Confirmation Modal -->
     <div class="modal" id="receiveModal">
       <div class="modal-backdrop"></div>
-      <div class="modal-content">
+      <div class="modal-content receive-confirm-modal">
         <div class="modal-header">
-          <h3 class="modal-title">接收文件</h3>
+          <h3 class="modal-title">收到文件</h3>
           <button class="modal-close" id="receiveModalClose">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -251,10 +286,73 @@
           </button>
         </div>
         <div class="modal-body">
-          <p class="receive-prompt" id="receivePrompt">-</p>
+          <!-- Sender Info -->
+          <div class="receive-sender-info" id="receiveSenderInfo">
+            <div class="sender-avatar" id="senderAvatar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            </div>
+            <div class="sender-details">
+              <span class="sender-name" id="senderName">未知设备</span>
+              <span class="sender-device-info" id="senderDeviceInfo">桌面设备</span>
+            </div>
+            <div class="receive-mode-badge" id="receiveModeBadge" data-mode="p2p">
+              <span class="mode-icon"></span>
+              <span class="mode-text">P2P 直连</span>
+            </div>
+          </div>
+
+          <!-- File Preview Card -->
+          <div class="receive-file-card">
+            <div class="file-icon-large" id="fileIconLarge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <div class="file-details">
+              <span class="file-name-large" id="receiveFileName">文件名.ext</span>
+              <div class="file-meta">
+                <span class="file-size-large" id="receiveFileSize">0 KB</span>
+                <span class="file-type-label" id="receiveFileType">文件</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Security Notice -->
+          <div class="receive-security-notice">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="M9 12l2 2 4-4"/>
+            </svg>
+            <span>文件已加密传输，安全可靠</span>
+          </div>
+
+          <!-- Action Buttons -->
           <div class="receive-actions">
-            <button class="btn btn-secondary" id="receiveDecline">拒绝</button>
-            <button class="btn btn-primary" id="receiveAccept">接受</button>
+            <button class="btn btn-secondary btn-large" id="receiveDecline">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+              拒绝
+            </button>
+            <button class="btn btn-primary btn-large" id="receiveAccept">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12l5 5L20 7"/>
+              </svg>
+              接受
+            </button>
+          </div>
+          
+          <!-- Always Accept Option -->
+          <div class="receive-trust-option">
+            <button class="btn-trust" id="receiveAlwaysAccept">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M9 12l2 2 4-4"/>
+              </svg>
+              <span>总是接收该设备的文件</span>
+            </button>
+            <p class="trust-hint">信任后，该设备发送的文件将自动接收</p>
           </div>
         </div>
       </div>
@@ -478,6 +576,13 @@
                 <span class="status-dot"></span>
                 <span id="settingsStatusText">连接中...</span>
               </span>
+            </div>
+          </div>
+          <div class="settings-section">
+            <label class="settings-label">信任的设备</label>
+            <p class="settings-hint">信任的设备发送文件时将自动接收</p>
+            <div class="trusted-devices-list" id="trustedDevicesList">
+              <p class="trusted-empty">暂无信任的设备</p>
             </div>
           </div>
         </div>

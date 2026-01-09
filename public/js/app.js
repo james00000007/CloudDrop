@@ -27,6 +27,156 @@ class CloudDrop {
     this.messageHistory = new Map(); // peerId -> messages array
     this.currentChatPeer = null; // Currently viewing chat history
     this.unreadMessages = new Map(); // peerId -> unread count
+    this.pendingFileRequest = null; // Current pending file request waiting for user decision
+    this.currentTransfer = null; // Current active transfer { peerId, fileId, fileName, direction }
+    
+    // Trusted devices - auto-accept files from these devices
+    this.trustedDevices = this.loadTrustedDevices();
+  }
+
+  /**
+   * Load trusted devices from localStorage
+   * Stores device fingerprint (name + deviceType + browserInfo hash)
+   */
+  loadTrustedDevices() {
+    try {
+      const saved = localStorage.getItem('clouddrop_trusted_devices');
+      return saved ? new Map(JSON.parse(saved)) : new Map();
+    } catch (e) {
+      console.warn('Failed to load trusted devices:', e);
+      return new Map();
+    }
+  }
+
+  /**
+   * Save trusted devices to localStorage
+   */
+  saveTrustedDevices() {
+    try {
+      localStorage.setItem('clouddrop_trusted_devices', 
+        JSON.stringify(Array.from(this.trustedDevices.entries())));
+    } catch (e) {
+      console.warn('Failed to save trusted devices:', e);
+    }
+  }
+
+  /**
+   * Generate a fingerprint for a device (for trust identification)
+   * Uses name + deviceType + browserInfo to create a stable identifier
+   */
+  getDeviceFingerprint(peer) {
+    const str = `${peer.name}|${peer.deviceType}|${peer.browserInfo || ''}`;
+    // Simple hash for fingerprint
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString(16);
+  }
+
+  /**
+   * Check if a device is trusted
+   */
+  isDeviceTrusted(peer) {
+    const fingerprint = this.getDeviceFingerprint(peer);
+    return this.trustedDevices.has(fingerprint);
+  }
+
+  /**
+   * Trust a device (auto-accept files from it)
+   */
+  trustDevice(peer) {
+    const fingerprint = this.getDeviceFingerprint(peer);
+    this.trustedDevices.set(fingerprint, {
+      name: peer.name,
+      deviceType: peer.deviceType,
+      browserInfo: peer.browserInfo,
+      trustedAt: Date.now()
+    });
+    this.saveTrustedDevices();
+    this.updateTrustedBadge(peer.id, true);
+    ui.showToast(`已信任设备: ${peer.name}`, 'success');
+  }
+
+  /**
+   * Untrust a device
+   */
+  untrustDevice(peer) {
+    const fingerprint = this.getDeviceFingerprint(peer);
+    this.trustedDevices.delete(fingerprint);
+    this.saveTrustedDevices();
+    this.updateTrustedBadge(peer.id, false);
+  }
+
+  /**
+   * Update trusted badge on peer card
+   */
+  updateTrustedBadge(peerId, trusted) {
+    const card = document.querySelector(`[data-peer-id="${peerId}"]`);
+    if (!card) return;
+    
+    const existingBadge = card.querySelector('.peer-trusted-badge');
+    
+    if (trusted && !existingBadge) {
+      const badge = document.createElement('div');
+      badge.className = 'peer-trusted-badge';
+      badge.title = '点击取消信任';
+      badge.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>`;
+      
+      // Click to untrust
+      badge.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const peer = this.peers.get(peerId);
+        if (!peer) return;
+        
+        const confirmed = await ui.showConfirmDialog({
+          title: '取消信任设备',
+          message: `确定要取消信任「<strong>${ui.escapeHtml(peer.name)}</strong>」吗？<br><br><span style="color: var(--text-muted)">取消后，该设备发送文件时需要您手动确认。</span>`,
+          confirmText: '取消信任',
+          cancelText: '保留信任',
+          type: 'warning'
+        });
+        
+        if (confirmed) {
+          this.untrustDevice(peer);
+          ui.showToast(`已取消信任: ${peer.name}`, 'info');
+        }
+      });
+      
+      card.appendChild(badge);
+    } else if (!trusted && existingBadge) {
+      existingBadge.remove();
+    }
+  }
+
+  /**
+   * Get list of all trusted devices
+   */
+  getTrustedDevicesList() {
+    return Array.from(this.trustedDevices.entries()).map(([fingerprint, info]) => ({
+      fingerprint,
+      ...info
+    }));
+  }
+
+  /**
+   * Remove a trusted device by fingerprint
+   */
+  removeTrustedDevice(fingerprint) {
+    const info = this.trustedDevices.get(fingerprint);
+    this.trustedDevices.delete(fingerprint);
+    this.saveTrustedDevices();
+    
+    // Update any matching peer cards
+    for (const [peerId, peer] of this.peers.entries()) {
+      if (this.getDeviceFingerprint(peer) === fingerprint) {
+        this.updateTrustedBadge(peerId, false);
+      }
+    }
+    
+    return info;
   }
 
   async init() {
@@ -106,6 +256,13 @@ class CloudDrop {
 
     this.webrtc.onProgress = (p) => {
       const isRelayMode = this.webrtc.relayMode.get(p.peerId) || false;
+      
+      // Update modal title to show actual transfer (in case it was "waiting for confirmation")
+      const modalTitle = document.getElementById('modalTitle');
+      if (modalTitle && modalTitle.textContent === '等待确认') {
+        modalTitle.textContent = '正在发送';
+      }
+      
       ui.updateTransferProgress({
         fileName: p.fileName, 
         fileSize: p.fileSize, 
@@ -122,14 +279,20 @@ class CloudDrop {
       a.href = url; a.download = name; a.click();
       URL.revokeObjectURL(url);
       ui.showToast(`已接收: ${name}`, 'success');
+      this.currentTransfer = null;
     };
 
+    // Note: onFileRequest is now handled via signaling (file-request message)
+    // This callback is kept for legacy P2P direct messages
     this.webrtc.onFileRequest = (peerId, info) => {
-      const peer = this.peers.get(peerId);
-      const isRelayMode = this.webrtc.relayMode.get(peerId) || false;
-      document.getElementById('receivePrompt').textContent = 
-        `${peer?.name || '未知设备'} 想发送 "${info.name}" (${ui.formatFileSize(info.size)})`;
-      ui.showReceivingModal(info.name, info.size, isRelayMode ? 'relay' : 'p2p');
+      // For P2P data channel messages (file-start), if we haven't confirmed yet
+      // This is for backward compatibility - normally requests go through signaling
+      const transfer = this.webrtc.incomingTransfers.get(peerId);
+      if (transfer && transfer.confirmed) {
+        // Already confirmed via signaling, just update progress modal
+        const isRelayMode = this.webrtc.relayMode.get(peerId) || false;
+        ui.showReceivingModal(info.name, info.size, isRelayMode ? 'relay' : 'p2p');
+      }
     };
 
     this.webrtc.onTextReceived = (peerId, text) => {
@@ -150,6 +313,25 @@ class CloudDrop {
       // Show toast notification
       const peer = this.peers.get(peerId);
       ui.showToast(`${peer?.name || '未知设备'}: ${text.substring(0, 30)}${text.length > 30 ? '...' : ''}`, 'info');
+    };
+
+    // Transfer start callback (for tracking fileId)
+    this.webrtc.onTransferStart = ({ peerId, fileId, fileName, direction }) => {
+      this.currentTransfer = { peerId, fileId, fileName, direction };
+    };
+
+    // Transfer cancelled callback
+    this.webrtc.onTransferCancelled = (peerId, fileId, reason) => {
+      const peer = this.peers.get(peerId);
+      ui.hideModal('transferModal');
+      
+      if (reason === 'user') {
+        ui.showToast(`${peer?.name || '对方'} 取消了传输`, 'warning');
+      } else {
+        ui.showToast('传输已取消', 'info');
+      }
+      
+      this.currentTransfer = null;
     };
 
     // Connection state change handler
@@ -226,12 +408,162 @@ class CloudDrop {
       case 'name-changed':
         this.handleNameChanged(msg.from, msg.data.name);
         break;
+      case 'file-request':
+        this.handleFileRequest(msg.from, msg.data);
+        break;
+      case 'file-response':
+        this.webrtc.handleFileResponse(msg.from, msg.data);
+        break;
+      case 'file-cancel':
+        this.webrtc.handleFileCancel(msg.from, msg.data);
+        break;
     }
+  }
+
+  /**
+   * Handle incoming file request - show confirmation dialog or auto-accept if trusted
+   */
+  handleFileRequest(peerId, data) {
+    const peer = this.peers.get(peerId);
+    const isRelayMode = data.transferMode === 'relay';
+    
+    // Store pending request info
+    this.pendingFileRequest = { peerId, fileId: data.fileId, data };
+    
+    // Check if this device is trusted - auto-accept if so
+    if (peer && this.isDeviceTrusted(peer)) {
+      console.log(`[App] Auto-accepting file from trusted device: ${peer.name}`);
+      ui.showToast(`自动接收来自 ${peer.name} 的文件: ${data.name}`, 'info');
+      this.acceptFileRequest();
+      return;
+    }
+    
+    // Update the receive modal with detailed info
+    ui.updateReceiveModal({
+      senderName: peer?.name || '未知设备',
+      senderDeviceType: peer?.deviceType || 'desktop',
+      senderBrowserInfo: peer?.browserInfo,
+      fileName: data.name,
+      fileSize: data.size,
+      mode: isRelayMode ? 'relay' : 'p2p'
+    });
+    
+    // Trigger notification (vibration)
+    ui.triggerNotification('file');
+    
+    // Show the confirmation modal
+    ui.showModal('receiveModal');
+  }
+
+  /**
+   * Accept the pending file request
+   */
+  acceptFileRequest() {
+    if (!this.pendingFileRequest) return;
+    
+    const { peerId, fileId, data } = this.pendingFileRequest;
+    
+    // Send acceptance
+    this.webrtc.respondToFileRequest(peerId, fileId, true);
+    
+    // Save current transfer state for cancellation
+    this.currentTransfer = {
+      peerId,
+      fileId,
+      fileName: data.name,
+      direction: 'receive'
+    };
+    
+    // Hide confirmation, show receiving progress
+    ui.hideModal('receiveModal');
+    const isRelayMode = data.transferMode === 'relay';
+    ui.showReceivingModal(data.name, data.size, isRelayMode ? 'relay' : 'p2p');
+    
+    // Initialize transfer state for receiving
+    this.webrtc.incomingTransfers.set(peerId, {
+      fileId: fileId,
+      name: data.name,
+      size: data.size,
+      totalChunks: data.totalChunks,
+      chunks: [],
+      received: 0,
+      startTime: Date.now(),
+      confirmed: true
+    });
+    
+    this.pendingFileRequest = null;
+  }
+
+  /**
+   * Decline the pending file request
+   */
+  declineFileRequest() {
+    if (!this.pendingFileRequest) return;
+    
+    const { peerId, fileId } = this.pendingFileRequest;
+    
+    // Send decline
+    this.webrtc.respondToFileRequest(peerId, fileId, false);
+    
+    ui.hideModal('receiveModal');
+    ui.showToast('已拒绝文件接收', 'info');
+    
+    this.pendingFileRequest = null;
+  }
+
+  /**
+   * Accept file and trust the sending device for future transfers
+   */
+  acceptAndTrustDevice() {
+    if (!this.pendingFileRequest) return;
+    
+    const { peerId } = this.pendingFileRequest;
+    const peer = this.peers.get(peerId);
+    
+    // Trust the device first
+    if (peer) {
+      this.trustDevice(peer);
+    }
+    
+    // Then accept the file
+    this.acceptFileRequest();
+  }
+
+  /**
+   * Cancel the current active transfer
+   */
+  cancelCurrentTransfer() {
+    if (!this.currentTransfer) {
+      ui.hideModal('transferModal');
+      return;
+    }
+    
+    const { peerId, fileId, fileName, direction } = this.currentTransfer;
+    
+    // Cancel the transfer via WebRTC
+    this.webrtc.cancelTransfer(fileId, peerId, 'user');
+    
+    // Hide modal and show feedback
+    ui.hideModal('transferModal');
+    
+    if (direction === 'send') {
+      ui.showToast(`已取消发送: ${fileName}`, 'info');
+    } else {
+      ui.showToast(`已取消接收: ${fileName}`, 'info');
+    }
+    
+    this.currentTransfer = null;
   }
 
   addPeer(peer) {
     this.peers.set(peer.id, peer);
     ui.addPeerToGrid(peer, document.getElementById('peersGrid'), (p, e) => this.onPeerClick(p, e));
+    
+    // Check if this device is trusted and show badge
+    if (this.isDeviceTrusted(peer)) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => this.updateTrustedBadge(peer.id, true), 50);
+    }
     
     // Prewarm WebRTC connection for faster first transfer
     if (this.webrtc) {
@@ -302,19 +634,56 @@ class CloudDrop {
   }
 
   async sendFiles(peerId, files) {
+    const peer = this.peers.get(peerId);
     for (const file of files) {
-      // Determine transfer mode
-      const isRelayMode = this.webrtc.relayMode.get(peerId) || false;
-      ui.showSendingModal(file.name, file.size, isRelayMode ? 'relay' : 'p2p');
+      // Show waiting for confirmation
+      this.showWaitingForConfirmation(peer?.name || '对方', file.name);
+      
       try {
+        // sendFile now handles the request/confirm flow internally
+        // It will throw if declined, timeout, or cancelled
+        // onTransferStart callback will set this.currentTransfer
         await this.webrtc.sendFile(peerId, file);
+        
         ui.hideModal('transferModal');
         ui.showToast(`已发送: ${file.name}`, 'success');
       } catch (e) {
         ui.hideModal('transferModal');
-        ui.showToast(`发送失败: ${e.message}`, 'error');
+        if (e.message.includes('拒绝')) {
+          ui.showToast(`${peer?.name || '对方'} 拒绝了接收文件`, 'warning');
+        } else if (e.message.includes('超时')) {
+          ui.showToast('文件请求超时，对方未响应', 'warning');
+        } else if (e.message.includes('取消')) {
+          ui.showToast('传输已取消', 'info');
+        } else {
+          ui.showToast(`发送失败: ${e.message}`, 'error');
+        }
+      } finally {
+        this.currentTransfer = null;
       }
     }
+  }
+
+  /**
+   * Show modal indicating waiting for recipient to accept
+   */
+  showWaitingForConfirmation(peerName, fileName) {
+    document.getElementById('modalTitle').textContent = '等待确认';
+    document.getElementById('transferFileName').textContent = fileName;
+    document.getElementById('transferFileSize').textContent = `等待 ${peerName} 确认接收...`;
+    document.getElementById('transferProgress').style.width = '0%';
+    document.getElementById('transferPercent').textContent = '等待中';
+    document.getElementById('transferSpeed').textContent = '';
+    
+    // Update mode indicator to show connecting
+    const indicator = document.getElementById('transferModeIndicator');
+    if (indicator) {
+      indicator.dataset.mode = 'p2p';
+      const modeText = indicator.querySelector('.transfer-mode-text');
+      if (modeText) modeText.textContent = '等待确认';
+    }
+    
+    ui.showModal('transferModal');
   }
 
   joinRoom(code) {
@@ -596,10 +965,40 @@ class CloudDrop {
     });
 
     // Modal close buttons
-    document.getElementById('modalClose')?.addEventListener('click', () => ui.hideModal('transferModal'));
-    document.getElementById('receiveModalClose')?.addEventListener('click', () => ui.hideModal('receiveModal'));
-    document.getElementById('receiveDecline')?.addEventListener('click', () => ui.hideModal('receiveModal'));
-    document.getElementById('receiveAccept')?.addEventListener('click', () => ui.hideModal('receiveModal'));
+    document.getElementById('modalClose')?.addEventListener('click', () => {
+      // If there's an active transfer, ask for confirmation
+      if (this.currentTransfer) {
+        this.cancelCurrentTransfer();
+      } else {
+        ui.hideModal('transferModal');
+      }
+    });
+    
+    // Cancel transfer button
+    document.getElementById('cancelTransfer')?.addEventListener('click', () => {
+      this.triggerHaptic('medium');
+      this.cancelCurrentTransfer();
+    });
+    document.getElementById('receiveModalClose')?.addEventListener('click', () => {
+      this.declineFileRequest();
+    });
+    document.getElementById('receiveDecline')?.addEventListener('click', () => {
+      this.triggerHaptic('light');
+      this.declineFileRequest();
+    });
+    document.getElementById('receiveAccept')?.addEventListener('click', () => {
+      this.triggerHaptic('medium');
+      this.acceptFileRequest();
+    });
+    document.getElementById('receiveAlwaysAccept')?.addEventListener('click', () => {
+      this.triggerHaptic('medium');
+      this.acceptAndTrustDevice();
+    });
+    
+    // Desktop settings button
+    document.getElementById('headerSettingsBtn')?.addEventListener('click', () => {
+      this.showMobileSettings();
+    });
 
     // Text modal
     document.getElementById('textModalClose')?.addEventListener('click', () => ui.hideModal('textModal'));
@@ -938,7 +1337,76 @@ class CloudDrop {
           : '连接中...';
     }
     
+    // Render trusted devices list
+    this.renderTrustedDevicesList();
+    
     ui.showModal('mobileSettingsModal');
+  }
+
+  /**
+   * Render trusted devices list in settings
+   */
+  renderTrustedDevicesList() {
+    const container = document.getElementById('trustedDevicesList');
+    if (!container) return;
+    
+    const devices = this.getTrustedDevicesList();
+    
+    if (devices.length === 0) {
+      container.innerHTML = '<p class="trusted-empty">暂无信任的设备</p>';
+      return;
+    }
+    
+    const deviceTypeIcons = {
+      desktop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
+      mobile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>',
+      tablet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M12 18h.01"/></svg>'
+    };
+    
+    container.innerHTML = devices.map(device => `
+      <div class="trusted-device-item" data-fingerprint="${device.fingerprint}">
+        <div class="trusted-device-info">
+          <div class="trusted-device-icon">
+            ${deviceTypeIcons[device.deviceType] || deviceTypeIcons.desktop}
+          </div>
+          <div class="trusted-device-details">
+            <div class="trusted-device-name">${ui.escapeHtml(device.name)}</div>
+            <div class="trusted-device-meta">${device.browserInfo || '未知浏览器'}</div>
+          </div>
+        </div>
+        <button class="btn-untrust" title="取消信任" data-fingerprint="${device.fingerprint}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    `).join('');
+    
+    // Add click handlers for untrust buttons
+    container.querySelectorAll('.btn-untrust').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const fingerprint = e.currentTarget.dataset.fingerprint;
+        const deviceInfo = this.trustedDevices.get(fingerprint);
+        
+        if (!deviceInfo) return;
+        
+        const confirmed = await ui.showConfirmDialog({
+          title: '取消信任设备',
+          message: `确定要取消信任「<strong>${ui.escapeHtml(deviceInfo.name)}</strong>」吗？<br><br><span style="color: var(--text-muted)">取消后，该设备发送文件时需要您手动确认。</span>`,
+          confirmText: '取消信任',
+          cancelText: '保留信任',
+          type: 'warning'
+        });
+        
+        if (confirmed) {
+          const info = this.removeTrustedDevice(fingerprint);
+          if (info) {
+            ui.showToast(`已取消信任: ${info.name}`, 'info');
+          }
+          this.renderTrustedDevicesList();
+        }
+      });
+    });
   }
 
   // Show mobile share modal

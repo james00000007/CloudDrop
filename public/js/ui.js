@@ -127,6 +127,120 @@ export const connectionModeIcons = {
   connecting: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/></svg>`
 };
 
+// File type icons
+export const fileTypeIcons = {
+  image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`,
+  video: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+  audio: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+  document: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
+  archive: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 8v13H3V8"/><path d="M23 3H1v5h22V3z"/><path d="M10 12h4"/></svg>`,
+  code: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
+  default: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`
+};
+
+/**
+ * Get file type category and label from filename
+ * @param {string} filename - File name
+ * @returns {{ type: string, label: string }} File type info
+ */
+export function getFileTypeInfo(filename) {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  
+  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif'];
+  const videoExts = ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv', 'wmv', 'm4v'];
+  const audioExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma'];
+  const documentExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf', 'odt'];
+  const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'];
+  const codeExts = ['js', 'ts', 'py', 'java', 'cpp', 'c', 'h', 'css', 'html', 'json', 'xml', 'yml', 'yaml', 'sh', 'rb', 'go', 'rs', 'swift', 'kt'];
+  
+  if (imageExts.includes(ext)) return { type: 'image', label: '图片' };
+  if (videoExts.includes(ext)) return { type: 'video', label: '视频' };
+  if (audioExts.includes(ext)) return { type: 'audio', label: '音频' };
+  if (documentExts.includes(ext)) return { type: 'document', label: '文档' };
+  if (archiveExts.includes(ext)) return { type: 'archive', label: '压缩包' };
+  if (codeExts.includes(ext)) return { type: 'code', label: '代码' };
+  
+  return { type: 'default', label: ext.toUpperCase() || '文件' };
+}
+
+/**
+ * Update the receive confirmation modal with file and sender info
+ * @param {Object} options - Options
+ */
+export function updateReceiveModal({ senderName, senderDeviceType, senderBrowserInfo, fileName, fileSize, mode }) {
+  // Update sender info
+  const senderNameEl = document.getElementById('senderName');
+  const senderDeviceInfoEl = document.getElementById('senderDeviceInfo');
+  const senderAvatarEl = document.getElementById('senderAvatar');
+  
+  if (senderNameEl) senderNameEl.textContent = senderName || '未知设备';
+  if (senderDeviceInfoEl) senderDeviceInfoEl.textContent = senderBrowserInfo || getDeviceLabel(senderDeviceType);
+  
+  if (senderAvatarEl) {
+    senderAvatarEl.className = `sender-avatar ${senderDeviceType || 'desktop'}`;
+    senderAvatarEl.innerHTML = deviceIcons[senderDeviceType] || deviceIcons.desktop;
+  }
+  
+  // Update file info
+  const fileNameEl = document.getElementById('receiveFileName');
+  const fileSizeEl = document.getElementById('receiveFileSize');
+  const fileTypeEl = document.getElementById('receiveFileType');
+  const fileIconEl = document.getElementById('fileIconLarge');
+  
+  if (fileNameEl) fileNameEl.textContent = fileName || '未知文件';
+  if (fileSizeEl) fileSizeEl.textContent = formatFileSize(fileSize || 0);
+  
+  const fileTypeInfo = getFileTypeInfo(fileName || '');
+  if (fileTypeEl) fileTypeEl.textContent = fileTypeInfo.label;
+  
+  if (fileIconEl) {
+    fileIconEl.className = `file-icon-large ${fileTypeInfo.type}`;
+    fileIconEl.innerHTML = fileTypeIcons[fileTypeInfo.type] || fileTypeIcons.default;
+  }
+  
+  // Update transfer mode badge
+  const modeBadge = document.getElementById('receiveModeBadge');
+  if (modeBadge) {
+    modeBadge.dataset.mode = mode || 'p2p';
+    const modeIcon = modeBadge.querySelector('.mode-icon');
+    const modeText = modeBadge.querySelector('.mode-text');
+    
+    if (mode === 'relay') {
+      if (modeIcon) modeIcon.innerHTML = connectionModeIcons.relay;
+      if (modeText) modeText.textContent = '中继传输';
+    } else {
+      if (modeIcon) modeIcon.innerHTML = connectionModeIcons.p2p;
+      if (modeText) modeText.textContent = 'P2P 直连';
+    }
+  }
+}
+
+/**
+ * Get device label from device type
+ */
+function getDeviceLabel(deviceType) {
+  const labels = { desktop: '桌面设备', mobile: '手机', tablet: '平板' };
+  return labels[deviceType] || '设备';
+}
+
+/**
+ * Trigger notification (vibration and/or sound)
+ * @param {'file' | 'message'} type - Notification type
+ */
+export function triggerNotification(type = 'file') {
+  // Vibration
+  if ('vibrate' in navigator) {
+    if (type === 'file') {
+      navigator.vibrate([100, 50, 100]); // Double pulse for file
+    } else {
+      navigator.vibrate(50); // Short pulse for message
+    }
+  }
+  
+  // Optional: Play sound (if we add audio assets later)
+  // Could use Web Audio API or Audio element
+}
+
 // Create peer card
 export function createPeerCard(peer) {
   const card = document.createElement('div');
@@ -237,6 +351,114 @@ export function showModal(id) {
 export function hideModal(id) {
   const m = document.getElementById(id);
   if (m) { m.classList.remove('active'); document.body.style.overflow = ''; }
+}
+
+/**
+ * Show a styled confirm dialog
+ * @param {Object} options - Dialog options
+ * @param {string} options.title - Dialog title
+ * @param {string} options.message - Dialog message
+ * @param {string} options.confirmText - Confirm button text (default: '确定')
+ * @param {string} options.cancelText - Cancel button text (default: '取消')
+ * @param {string} options.type - Icon type: 'warning' | 'danger' | 'success' | 'info' (default: 'warning')
+ * @param {string} options.icon - Custom SVG icon (optional)
+ * @returns {Promise<boolean>} - Resolves true if confirmed, false if cancelled
+ */
+export function showConfirmDialog(options = {}) {
+  const {
+    title = '确认操作',
+    message = '您确定要执行此操作吗？',
+    confirmText = '确定',
+    cancelText = '取消',
+    type = 'warning',
+    icon = null
+  } = options;
+
+  return new Promise((resolve) => {
+    const dialog = document.getElementById('confirmDialog');
+    const iconEl = document.getElementById('confirmIcon');
+    const titleEl = document.getElementById('confirmTitle');
+    const messageEl = document.getElementById('confirmMessage');
+    const confirmBtn = document.getElementById('confirmOk');
+    const cancelBtn = document.getElementById('confirmCancel');
+
+    if (!dialog) {
+      // Fallback to native confirm if dialog not found
+      resolve(confirm(message));
+      return;
+    }
+
+    // Set content
+    titleEl.textContent = title;
+    messageEl.innerHTML = message;
+    confirmBtn.textContent = confirmText;
+    cancelBtn.textContent = cancelText;
+
+    // Set icon type
+    iconEl.className = 'confirm-icon';
+    if (type === 'danger') {
+      iconEl.classList.add('danger');
+      iconEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M15 9l-6 6M9 9l6 6"/>
+      </svg>`;
+    } else if (type === 'success') {
+      iconEl.classList.add('success');
+      iconEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>`;
+    } else if (type === 'info') {
+      iconEl.classList.add('info');
+      iconEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 16v-4M12 8h.01"/>
+      </svg>`;
+    } else {
+      // warning (default)
+      iconEl.innerHTML = icon || `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="M12 8v4M12 16h.01"/>
+      </svg>`;
+    }
+
+    // Set button style based on type
+    confirmBtn.className = 'btn';
+    if (type === 'danger') {
+      confirmBtn.classList.add('btn-danger');
+    } else {
+      confirmBtn.classList.add('btn-primary');
+    }
+
+    // Cleanup function
+    const cleanup = () => {
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      backdrop?.removeEventListener('click', onCancel);
+      hideModal('confirmDialog');
+    };
+
+    const onConfirm = () => {
+      cleanup();
+      resolve(true);
+    };
+
+    const onCancel = () => {
+      cleanup();
+      resolve(false);
+    };
+
+    // Attach event listeners
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    
+    // Click backdrop to cancel
+    const backdrop = dialog.querySelector('.modal-backdrop');
+    backdrop?.addEventListener('click', onCancel);
+
+    // Show dialog
+    showModal('confirmDialog');
+  });
 }
 
 export function hideAllModals() {

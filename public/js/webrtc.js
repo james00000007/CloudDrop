@@ -228,7 +228,9 @@ export class WebRTCManager {
     this.ignoreOffer = new Map(); // peerId -> boolean
     
     this.onFileReceived = null;
-    this.onFileRequest = null;
+    this.onFileRequest = null; // Called when file request needs user confirmation
+    this.onFileRequestResponse = null; // Called when sender receives accept/decline
+    this.onTransferStart = null; // Called when file transfer starts (with fileId)
     this.onProgress = null;
     this.onTextReceived = null;
     this.onConnectionStateChange = null;
@@ -241,6 +243,14 @@ export class WebRTCManager {
     
     // Connection attempt tracking for racing
     this.connectionRacing = new Map(); // peerId -> { p2pPromise, resolved, winner }
+    
+    // File transfer request tracking
+    this.pendingFileRequests = new Map(); // fileId -> { peerId, file, resolve, reject }
+    this.FILE_REQUEST_TIMEOUT = 60000; // 60 seconds to respond
+    
+    // Active transfer tracking for cancellation support
+    this.activeTransfers = new Map(); // fileId -> { peerId, direction: 'send'|'receive', cancelled: boolean }
+    this.onTransferCancelled = null; // Callback when transfer is cancelled by peer
     
     // Pre-fetch ICE servers eagerly
     fetchIceServers();
@@ -801,27 +811,231 @@ export class WebRTCManager {
   }
 
   // Send file - automatically uses best available method
+  // Now with request/confirmation flow
   async sendFile(peerId, file) {
     // Try to establish connection (may result in P2P or relay)
     await this.ensureConnection(peerId);
     
-    // Check if we're in relay mode after connection attempt
-    if (this.relayMode.get(peerId)) {
+    const fileId = crypto.randomUUID();
+    const isRelayMode = this.relayMode.get(peerId);
+    
+    // Notify about transfer start (for tracking/cancellation)
+    if (this.onTransferStart) {
+      this.onTransferStart({ peerId, fileId, fileName: file.name, fileSize: file.size, direction: 'send' });
+    }
+    
+    // Step 1: Send file request and wait for confirmation
+    console.log(`[WebRTC] Requesting file transfer permission from ${peerId}`);
+    const accepted = await this._requestFileTransfer(peerId, file, fileId, isRelayMode);
+    
+    if (!accepted) {
+      throw new Error('对方拒绝了文件接收');
+    }
+    
+    // Step 2: Actually transfer the file
+    if (isRelayMode) {
       console.log(`[WebRTC] Sending file to ${peerId} via relay`);
-      return this.sendFileViaRelay(peerId, file);
+      return this._sendFileDataViaRelay(peerId, file, fileId);
     }
 
     // Verify we have a working P2P channel
     const dc = this.dataChannels.get(peerId);
     if (!dc || dc.readyState !== 'open') {
       console.log(`[WebRTC] No P2P channel available, using relay for ${peerId}`);
-      // Silent switch - already in usable state
       this._switchToRelay(peerId, null, true);
-      return this.sendFileViaRelay(peerId, file);
+      return this._sendFileDataViaRelay(peerId, file, fileId);
     }
 
     console.log(`[WebRTC] Sending file to ${peerId} via P2P`);
-    const fileId = crypto.randomUUID();
+    return this._sendFileDataViaP2P(peerId, file, fileId, dc);
+  }
+
+  /**
+   * Request file transfer permission from recipient
+   * @returns {Promise<boolean>} - true if accepted, false if declined
+   */
+  async _requestFileTransfer(peerId, file, fileId, isRelayMode) {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        this.pendingFileRequests.delete(fileId);
+        reject(new Error('文件请求超时，对方未响应'));
+      }, this.FILE_REQUEST_TIMEOUT);
+
+      this.pendingFileRequests.set(fileId, {
+        peerId,
+        file,
+        resolve: (accepted) => {
+          clearTimeout(timeoutId);
+          this.pendingFileRequests.delete(fileId);
+          resolve(accepted);
+        },
+        reject: (error) => {
+          clearTimeout(timeoutId);
+          this.pendingFileRequests.delete(fileId);
+          reject(error);
+        }
+      });
+
+      // Send file request via signaling (always goes through server)
+      this.signaling.send({
+        type: 'file-request',
+        to: peerId,
+        data: {
+          fileId,
+          name: file.name,
+          size: file.size,
+          totalChunks: Math.ceil(file.size / CHUNK_SIZE),
+          transferMode: isRelayMode ? 'relay' : 'p2p'
+        }
+      });
+    });
+  }
+
+  /**
+   * Handle incoming file request (called by app.js)
+   */
+  handleFileRequest(peerId, data) {
+    console.log(`[WebRTC] Received file request from ${peerId}:`, data);
+    // This is now handled by signaling, forwarded to onFileRequest callback
+    if (this.onFileRequest) {
+      this.onFileRequest(peerId, data);
+    }
+  }
+
+  /**
+   * Respond to a file request (called by app.js when user accepts/declines)
+   * @param {string} peerId - Sender's peer ID
+   * @param {string} fileId - File ID
+   * @param {boolean} accept - true to accept, false to decline
+   */
+  respondToFileRequest(peerId, fileId, accept) {
+    console.log(`[WebRTC] Responding to file request ${fileId}: ${accept ? 'accept' : 'decline'}`);
+    
+    this.signaling.send({
+      type: 'file-response',
+      to: peerId,
+      data: { fileId, accepted: accept }
+    });
+    
+    if (accept) {
+      // Prepare to receive file - initialize transfer state
+      // The actual transfer state will be set when file-start arrives
+    }
+  }
+
+  /**
+   * Handle file response (accept/decline from recipient)
+   */
+  handleFileResponse(peerId, data) {
+    console.log(`[WebRTC] Received file response from ${peerId}:`, data);
+    const pending = this.pendingFileRequests.get(data.fileId);
+    
+    if (pending) {
+      pending.resolve(data.accepted);
+    }
+    
+    // Also notify via callback for UI updates
+    if (this.onFileRequestResponse) {
+      this.onFileRequestResponse(peerId, data.fileId, data.accepted);
+    }
+  }
+
+  /**
+   * Cancel an active transfer (either sending or receiving)
+   * @param {string} fileId - File ID to cancel
+   * @param {string} peerId - Peer ID involved in transfer
+   * @param {string} reason - Optional reason for cancellation
+   */
+  cancelTransfer(fileId, peerId, reason = 'user') {
+    console.log(`[WebRTC] Cancelling transfer ${fileId} with ${peerId}, reason: ${reason}`);
+    
+    // Mark as cancelled in active transfers
+    const transfer = this.activeTransfers.get(fileId);
+    if (transfer) {
+      transfer.cancelled = true;
+    }
+    
+    // Clean up incoming transfer state
+    const incomingTransfer = this.incomingTransfers.get(peerId);
+    if (incomingTransfer && incomingTransfer.fileId === fileId) {
+      this.incomingTransfers.delete(peerId);
+    }
+    
+    // Notify the other peer
+    this.signaling.send({
+      type: 'file-cancel',
+      to: peerId,
+      data: { fileId, reason }
+    });
+    
+    // Also send via data channel if available (faster)
+    const dc = this.dataChannels.get(peerId);
+    if (dc && dc.readyState === 'open') {
+      try {
+        dc.send(JSON.stringify({ type: 'file-cancel', fileId, reason }));
+      } catch (e) {
+        console.warn('[WebRTC] Failed to send cancel via data channel:', e);
+      }
+    }
+  }
+
+  /**
+   * Handle incoming file cancel message
+   */
+  handleFileCancel(peerId, data) {
+    console.log(`[WebRTC] Received file cancel from ${peerId}:`, data);
+    
+    const { fileId, reason } = data;
+    
+    // Mark transfer as cancelled
+    const transfer = this.activeTransfers.get(fileId);
+    if (transfer) {
+      transfer.cancelled = true;
+    }
+    
+    // Clean up incoming transfer state
+    const incomingTransfer = this.incomingTransfers.get(peerId);
+    if (incomingTransfer && incomingTransfer.fileId === fileId) {
+      this.incomingTransfers.delete(peerId);
+    }
+    
+    // Also check pending file requests (cancel during confirmation wait)
+    const pendingRequest = this.pendingFileRequests.get(fileId);
+    if (pendingRequest) {
+      pendingRequest.reject(new Error('对方取消了传输'));
+    }
+    
+    // Notify via callback
+    if (this.onTransferCancelled) {
+      this.onTransferCancelled(peerId, fileId, reason);
+    }
+  }
+
+  /**
+   * Get current active transfer info
+   */
+  getActiveTransfer(peerId) {
+    // Find transfer involving this peer
+    for (const [fileId, transfer] of this.activeTransfers.entries()) {
+      if (transfer.peerId === peerId && !transfer.cancelled) {
+        return { fileId, ...transfer };
+      }
+    }
+    // Check incoming transfers
+    const incoming = this.incomingTransfers.get(peerId);
+    if (incoming && !incoming.cancelled) {
+      return { fileId: incoming.fileId, peerId, direction: 'receive', ...incoming };
+    }
+    return null;
+  }
+
+  /**
+   * Send file data via P2P (after confirmation)
+   */
+  async _sendFileDataViaP2P(peerId, file, fileId, dc) {
+    // Register active transfer
+    this.activeTransfers.set(fileId, { peerId, direction: 'send', cancelled: false });
+    
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
     dc.send(JSON.stringify({
@@ -834,42 +1048,74 @@ export class WebRTCManager {
 
     let offset = 0, chunkIndex = 0, startTime = Date.now();
     
-    while (offset < file.size) {
-      const chunk = file.slice(offset, offset + CHUNK_SIZE);
-      const buffer = await chunk.arrayBuffer();
-      const encrypted = await cryptoManager.encryptChunk(peerId, buffer);
+    try {
+      while (offset < file.size) {
+        // Check if transfer was cancelled
+        const transfer = this.activeTransfers.get(fileId);
+        if (!transfer || transfer.cancelled) {
+          console.log(`[WebRTC] Transfer ${fileId} was cancelled`);
+          throw new Error('传输已取消');
+        }
+        
+        const chunk = file.slice(offset, offset + CHUNK_SIZE);
+        const buffer = await chunk.arrayBuffer();
+        const encrypted = await cryptoManager.encryptChunk(peerId, buffer);
 
-      while (dc.bufferedAmount > 1024 * 1024) {
-        await new Promise(r => setTimeout(r, 10));
+        while (dc.bufferedAmount > 1024 * 1024) {
+          // Check cancellation during buffer wait
+          const t = this.activeTransfers.get(fileId);
+          if (!t || t.cancelled) {
+            throw new Error('传输已取消');
+          }
+          await new Promise(r => setTimeout(r, 10));
+        }
+
+        dc.send(encrypted);
+        offset += CHUNK_SIZE;
+        chunkIndex++;
+
+        if (this.onProgress) {
+          const elapsed = (Date.now() - startTime) / 1000;
+          this.onProgress({
+            peerId, fileId, fileName: file.name, fileSize: file.size,
+            sent: offset, total: file.size,
+            percent: (offset / file.size) * 100,
+            speed: offset / elapsed
+          });
+        }
       }
 
-      dc.send(encrypted);
-      offset += CHUNK_SIZE;
-      chunkIndex++;
-
-      if (this.onProgress) {
-        const elapsed = (Date.now() - startTime) / 1000;
-        this.onProgress({
-          peerId, fileId, fileName: file.name, fileSize: file.size,
-          sent: offset, total: file.size,
-          percent: (offset / file.size) * 100,
-          speed: offset / elapsed
-        });
-      }
+      dc.send(JSON.stringify({ type: 'file-end', fileId }));
+    } finally {
+      this.activeTransfers.delete(fileId);
     }
-
-    dc.send(JSON.stringify({ type: 'file-end', fileId }));
   }
 
-  // Send file via WebSocket relay
+  // Send file via WebSocket relay (legacy - now wrapped by sendFile)
   async sendFileViaRelay(peerId, file) {
+    const fileId = crypto.randomUUID();
+    const accepted = await this._requestFileTransfer(peerId, file, fileId, true);
+    
+    if (!accepted) {
+      throw new Error('对方拒绝了文件接收');
+    }
+    
+    return this._sendFileDataViaRelay(peerId, file, fileId);
+  }
+
+  /**
+   * Send file data via relay (after confirmation)
+   */
+  async _sendFileDataViaRelay(peerId, file, fileId) {
+    // Register active transfer
+    this.activeTransfers.set(fileId, { peerId, direction: 'send', cancelled: false });
+    
     // Ensure we have encryption key before sending
     if (!cryptoManager.hasSharedSecret(peerId)) {
       console.log(`[WebRTC] No shared key for ${peerId}, exchanging keys via signaling...`);
       await this._exchangeKeysViaSignaling(peerId);
     }
     
-    const fileId = crypto.randomUUID();
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
     this.signaling.send({
@@ -886,44 +1132,55 @@ export class WebRTCManager {
 
     let offset = 0, chunkIndex = 0, startTime = Date.now();
     
-    while (offset < file.size) {
-      const chunk = file.slice(offset, offset + CHUNK_SIZE);
-      const buffer = await chunk.arrayBuffer();
-      const encrypted = await cryptoManager.encryptChunk(peerId, buffer);
-      
-      const base64Data = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+    try {
+      while (offset < file.size) {
+        // Check if transfer was cancelled
+        const transfer = this.activeTransfers.get(fileId);
+        if (!transfer || transfer.cancelled) {
+          console.log(`[WebRTC] Relay transfer ${fileId} was cancelled`);
+          throw new Error('传输已取消');
+        }
+        
+        const chunk = file.slice(offset, offset + CHUNK_SIZE);
+        const buffer = await chunk.arrayBuffer();
+        const encrypted = await cryptoManager.encryptChunk(peerId, buffer);
+        
+        const base64Data = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+
+        this.signaling.send({
+          type: 'relay-data',
+          to: peerId,
+          data: {
+            type: 'chunk',
+            fileId,
+            data: base64Data
+          }
+        });
+
+        offset += CHUNK_SIZE;
+        chunkIndex++;
+
+        if (this.onProgress) {
+          const elapsed = (Date.now() - startTime) / 1000;
+          this.onProgress({
+            peerId, fileId, fileName: file.name, fileSize: file.size,
+            sent: Math.min(offset, file.size), total: file.size,
+            percent: Math.min((offset / file.size) * 100, 100),
+            speed: offset / elapsed
+          });
+        }
+        
+        await new Promise(r => setTimeout(r, 10));
+      }
 
       this.signaling.send({
         type: 'relay-data',
         to: peerId,
-        data: {
-          type: 'chunk',
-          fileId,
-          data: base64Data
-        }
+        data: { type: 'file-end', fileId }
       });
-
-      offset += CHUNK_SIZE;
-      chunkIndex++;
-
-      if (this.onProgress) {
-        const elapsed = (Date.now() - startTime) / 1000;
-        this.onProgress({
-          peerId, fileId, fileName: file.name, fileSize: file.size,
-          sent: Math.min(offset, file.size), total: file.size,
-          percent: Math.min((offset / file.size) * 100, 100),
-          speed: offset / elapsed
-        });
-      }
-      
-      await new Promise(r => setTimeout(r, 10));
+    } finally {
+      this.activeTransfers.delete(fileId);
     }
-
-    this.signaling.send({
-      type: 'relay-data',
-      to: peerId,
-      data: { type: 'file-end', fileId }
-    });
   }
 
   // Handle incoming message
@@ -932,10 +1189,29 @@ export class WebRTCManager {
       const msg = JSON.parse(data);
       
       if (msg.type === 'file-start') {
-        this.incomingTransfers.set(peerId, {
-          fileId: msg.fileId, name: msg.name, size: msg.size,
-          totalChunks: msg.totalChunks, chunks: [], received: 0, startTime: Date.now()
-        });
+        // Check if we have a pre-confirmed transfer (from file-request flow)
+        const existingTransfer = this.incomingTransfers.get(peerId);
+        
+        if (existingTransfer && existingTransfer.confirmed && existingTransfer.fileId === msg.fileId) {
+          // Transfer was already confirmed, update with actual start time
+          existingTransfer.startTime = Date.now();
+          // Register as active transfer for cancellation support
+          this.activeTransfers.set(msg.fileId, { peerId, direction: 'receive', cancelled: false });
+          console.log(`[WebRTC] Starting confirmed file transfer: ${msg.name}`);
+        } else {
+          // Legacy flow or direct P2P without confirmation
+          // Initialize new transfer
+          this.incomingTransfers.set(peerId, {
+            fileId: msg.fileId, name: msg.name, size: msg.size,
+            totalChunks: msg.totalChunks, chunks: [], received: 0, startTime: Date.now(),
+            confirmed: true // Mark as confirmed since it's already starting
+          });
+          // Register as active transfer
+          this.activeTransfers.set(msg.fileId, { peerId, direction: 'receive', cancelled: false });
+          console.log(`[WebRTC] File transfer started (direct): ${msg.name}`);
+        }
+        
+        // Notify for progress modal update
         if (this.onFileRequest) this.onFileRequest(peerId, msg);
       } else if (msg.type === 'file-end') {
         const transfer = this.incomingTransfers.get(peerId);
@@ -943,7 +1219,11 @@ export class WebRTCManager {
           const blob = new Blob(transfer.chunks);
           if (this.onFileReceived) this.onFileReceived(peerId, transfer.name, blob);
           this.incomingTransfers.delete(peerId);
+          this.activeTransfers.delete(transfer.fileId);
         }
+      } else if (msg.type === 'file-cancel') {
+        // Handle cancel message from data channel
+        this.handleFileCancel(peerId, msg);
       } else if (msg.type === 'text') {
         if (this.onTextReceived) this.onTextReceived(peerId, msg.content);
       }
@@ -978,17 +1258,39 @@ export class WebRTCManager {
     }
 
     if (data.type === 'file-start') {
-      this.incomingTransfers.set(peerId, {
-        fileId: data.fileId, name: data.name, size: data.size,
-        totalChunks: data.totalChunks, chunks: [], received: 0, startTime: Date.now()
-      });
+      // Check if we have a pre-confirmed transfer (from file-request flow)
+      const existingTransfer = this.incomingTransfers.get(peerId);
+      
+      if (existingTransfer && existingTransfer.confirmed && existingTransfer.fileId === data.fileId) {
+        // Transfer was already confirmed, update with actual start time
+        existingTransfer.startTime = Date.now();
+        // Register as active transfer for cancellation support
+        this.activeTransfers.set(data.fileId, { peerId, direction: 'receive', cancelled: false });
+        console.log(`[WebRTC] Starting confirmed relay file transfer: ${data.name}`);
+      } else {
+        // Initialize new transfer
+        this.incomingTransfers.set(peerId, {
+          fileId: data.fileId, name: data.name, size: data.size,
+          totalChunks: data.totalChunks, chunks: [], received: 0, startTime: Date.now(),
+          confirmed: true
+        });
+        // Register as active transfer
+        this.activeTransfers.set(data.fileId, { peerId, direction: 'receive', cancelled: false });
+        console.log(`[WebRTC] Relay file transfer started (direct): ${data.name}`);
+      }
+      
+      // Notify for progress modal update
       if (this.onFileRequest) this.onFileRequest(peerId, data);
+    } else if (data.type === 'file-cancel') {
+      // Handle cancel message
+      this.handleFileCancel(peerId, data);
     } else if (data.type === 'file-end') {
       const transfer = this.incomingTransfers.get(peerId);
       if (transfer) {
         const blob = new Blob(transfer.chunks);
         if (this.onFileReceived) this.onFileReceived(peerId, transfer.name, blob);
         this.incomingTransfers.delete(peerId);
+        this.activeTransfers.delete(transfer.fileId);
       }
     } else if (data.type === 'chunk') {
       const transfer = this.incomingTransfers.get(peerId);

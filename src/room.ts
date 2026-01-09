@@ -16,7 +16,7 @@ interface Peer {
 }
 
 interface SignalingMessage {
-  type: 'join' | 'leave' | 'offer' | 'answer' | 'ice-candidate' | 'peers' | 'text' | 'peer-joined' | 'peer-left' | 'relay-data' | 'name-changed' | 'key-exchange';
+  type: 'join' | 'leave' | 'offer' | 'answer' | 'ice-candidate' | 'peers' | 'text' | 'peer-joined' | 'peer-left' | 'relay-data' | 'name-changed' | 'key-exchange' | 'file-request' | 'file-response' | 'file-cancel';
   from?: string;
   to?: string;
   data?: unknown;
@@ -132,6 +132,11 @@ export class Room {
           break;
         case 'name-changed':
           await this.handleNameChanged(ws, msg);
+          break;
+        case 'file-request':
+        case 'file-response':
+        case 'file-cancel':
+          await this.handleFileSignaling(ws, msg);
           break;
       }
     } catch (error) {
@@ -294,6 +299,28 @@ export class Room {
     if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
       targetPeer.ws.send(JSON.stringify({
         type: 'key-exchange',
+        from: fromPeerId,
+        data: msg.data,
+      }));
+    }
+  }
+
+  /**
+   * Handle file request/response signaling messages
+   * Used for file transfer confirmation flow
+   */
+  private async handleFileSignaling(ws: WebSocket, msg: SignalingMessage): Promise<void> {
+    if (!msg.to) return;
+
+    const fromPeerId = this.getPeerIdFromWs(ws);
+    if (!fromPeerId) return;
+
+    const activePeers = this.getActivePeers();
+    const targetPeer = activePeers.get(msg.to);
+    
+    if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
+      targetPeer.ws.send(JSON.stringify({
+        type: msg.type, // 'file-request' or 'file-response'
         from: fromPeerId,
         data: msg.data,
       }));

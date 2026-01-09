@@ -670,6 +670,59 @@ body::before {
   color: var(--text-muted);
 }
 
+/* Transfer Cancel Button */
+.transfer-actions {
+  margin-top: var(--space-lg);
+  display: flex;
+  justify-content: center;
+}
+
+.btn-cancel-transfer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-xl);
+  min-width: 140px;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  color: var(--status-error);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-cancel-transfer:hover {
+  background: rgba(248, 113, 113, 0.2);
+  border-color: rgba(248, 113, 113, 0.5);
+  box-shadow: 0 0 20px rgba(248, 113, 113, 0.2);
+}
+
+.btn-cancel-transfer:active {
+  transform: scale(0.98);
+}
+
+.btn-cancel-transfer svg {
+  width: 18px;
+  height: 18px;
+}
+
+.btn-cancel-transfer:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Mobile optimization for cancel button */
+@media (max-width: 640px) {
+  .btn-cancel-transfer {
+    width: 100%;
+    padding: var(--space-md) var(--space-lg);
+    min-height: 48px;
+  }
+}
+
 /* ============================================
    Transfer Mode Indicator (in transfer modal)
    ============================================ */
@@ -715,19 +768,499 @@ body::before {
   white-space: nowrap;
 }
 
+/* Waiting state for transfer indicator */
+.transfer-mode-indicator[data-mode="waiting"] {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--status-warning);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+}
+
+.transfer-mode-indicator[data-mode="waiting"] .transfer-mode-icon {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
 /* ============================================
-   Receive Modal
+   Receive Confirmation Modal (Enhanced)
    ============================================ */
+.receive-confirm-modal {
+  max-width: 400px;
+}
+
+.receive-confirm-modal .modal-body {
+  padding: 0 var(--space-lg) var(--space-lg);
+}
+
+/* Sender Info Section */
+.receive-sender-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--bg-glass);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.sender-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sender-avatar::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+}
+
+.sender-avatar svg {
+  width: 24px;
+  height: 24px;
+  position: relative;
+  z-index: 1;
+  color: var(--accent-primary);
+}
+
+.sender-avatar.mobile svg { color: var(--accent-secondary); }
+.sender-avatar.tablet svg { color: var(--status-success); }
+
+.sender-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.sender-name {
+  display: block;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sender-device-info {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* Receive Mode Badge */
+.receive-mode-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.receive-mode-badge[data-mode="p2p"] {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--status-success);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.receive-mode-badge[data-mode="relay"] {
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--accent-primary);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.receive-mode-badge .mode-icon {
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.receive-mode-badge .mode-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* File Preview Card */
+.receive-file-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.08) 0%, rgba(167, 139, 250, 0.08) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xl);
+  margin-bottom: var(--space-lg);
+}
+
+.file-icon-large {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-gradient);
+  border-radius: var(--radius-lg);
+  color: white;
+  flex-shrink: 0;
+}
+
+.file-icon-large svg {
+  width: 32px;
+  height: 32px;
+}
+
+/* File type specific icons */
+.file-icon-large.image {
+  background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+}
+
+.file-icon-large.video {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+}
+
+.file-icon-large.audio {
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+}
+
+.file-icon-large.document {
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+}
+
+.file-icon-large.archive {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+.file-icon-large.code {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+}
+
+.file-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name-large {
+  display: block;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-xs);
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.file-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.file-size-large {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.file-type-label {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--bg-glass);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Security Notice */
+.receive-security-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(52, 211, 153, 0.1);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-lg);
+  font-size: var(--font-size-xs);
+  color: var(--status-success);
+}
+
+.receive-security-notice svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Enhanced Action Buttons */
+.receive-actions {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: stretch;
+}
+
+.receive-actions .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+.btn-large {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--font-size-base);
+  min-height: 52px;
+}
+
+.btn-large svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Decline button hover - red tint */
+.receive-actions .btn-secondary:hover {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.4);
+  color: var(--status-error);
+}
+
+/* Accept button glow */
+.receive-actions .btn-primary:hover {
+  box-shadow: 0 0 30px rgba(96, 165, 250, 0.4);
+}
+
+/* Legacy receive-prompt for backward compatibility */
 .receive-prompt {
   margin-bottom: var(--space-lg);
   color: var(--text-primary);
   font-size: var(--font-size-base);
 }
 
-.receive-actions {
+/* Trust Device Option */
+.receive-trust-option {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.btn-trust {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  background: transparent;
+  border: 1px dashed rgba(52, 211, 153, 0.4);
+  border-radius: var(--radius-lg);
+  color: var(--status-success);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  width: 100%;
+}
+
+.btn-trust:hover {
+  background: rgba(52, 211, 153, 0.1);
+  border-style: solid;
+  border-color: rgba(52, 211, 153, 0.6);
+}
+
+.btn-trust:active {
+  transform: scale(0.98);
+}
+
+.btn-trust svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.trust-hint {
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* Trusted device badge on peer card */
+.peer-trusted-badge {
+  position: absolute;
+  bottom: var(--space-sm);
+  left: var(--space-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(52, 211, 153, 0.2);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  border-radius: 50%;
+  color: var(--status-success);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  z-index: 10;
+}
+
+.peer-trusted-badge:hover {
+  background: rgba(248, 113, 113, 0.2);
+  border-color: rgba(248, 113, 113, 0.5);
+  color: var(--status-error);
+  transform: scale(1.1);
+}
+
+.peer-trusted-badge:hover::after {
+  content: '取消信任';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  box-shadow: var(--shadow-md);
+}
+
+.peer-trusted-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Settings button in header */
+.settings-btn {
+  margin-left: var(--space-md);
+}
+
+/* Generic Confirm Dialog */
+.confirm-dialog {
+  max-width: 360px;
+  text-align: center;
+  padding: var(--space-xl);
+}
+
+.confirm-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--space-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(251, 191, 36, 0.15);
+  border-radius: 50%;
+  color: #fbbf24;
+}
+
+.confirm-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.confirm-icon.danger {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--status-error);
+}
+
+.confirm-icon.success {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--status-success);
+}
+
+.confirm-icon.info {
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--accent-blue);
+}
+
+.confirm-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.confirm-message {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-xl);
+}
+
+.confirm-actions {
   display: flex;
   gap: var(--space-md);
-  justify-content: flex-end;
+  justify-content: center;
+}
+
+.confirm-actions .btn {
+  min-width: 100px;
+  padding: var(--space-sm) var(--space-lg);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  color: white;
+  border: none;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  transform: translateY(-1px);
+}
+
+/* Mobile optimization for receive modal */
+@media (max-width: 640px) {
+  .receive-confirm-modal {
+    max-width: 100%;
+  }
+  
+  .receive-sender-info {
+    flex-wrap: wrap;
+  }
+  
+  .receive-mode-badge {
+    order: 3;
+    margin-top: var(--space-sm);
+    margin-left: auto;
+  }
+  
+  .file-icon-large {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .file-icon-large svg {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .file-name-large {
+    font-size: var(--font-size-sm);
+  }
+  
+  .receive-actions {
+    flex-direction: column;
+  }
+  
+  .receive-actions .btn {
+    width: 100%;
+  }
+  
+  .btn-trust {
+    padding: var(--space-md) var(--space-lg);
+  }
 }
 
 /* ============================================
@@ -2710,6 +3243,105 @@ body::before {
   padding: var(--space-xs) var(--space-md);
   font-size: var(--font-size-xs);
   min-height: auto;
+}
+
+/* Settings hint text */
+.settings-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-bottom: var(--space-sm);
+}
+
+/* Trusted devices list in settings */
+.trusted-devices-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.trusted-empty {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  text-align: center;
+  padding: var(--space-md);
+}
+
+.trusted-device-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-glass);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-xs);
+}
+
+.trusted-device-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  flex: 1;
+}
+
+.trusted-device-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-gradient);
+  border-radius: 50%;
+  color: white;
+  flex-shrink: 0;
+}
+
+.trusted-device-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.trusted-device-details {
+  min-width: 0;
+}
+
+.trusted-device-name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trusted-device-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.btn-untrust {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--status-error);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.btn-untrust:hover {
+  background: rgba(248, 113, 113, 0.2);
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.btn-untrust svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* ============================================
