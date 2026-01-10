@@ -42,8 +42,12 @@ export const WEBRTC = {
   ICE_SERVERS_CACHE_TTL: 5 * 60 * 1000, // 5 minutes
 
   // Fallback STUN servers (only used if server is unreachable)
+  // Prioritize China-accessible servers, with global fallbacks
   FALLBACK_ICE_SERVERS: [
-    { urls: 'stun:stun.l.google.com:19302' }
+    { urls: 'stun:stun.miwifi.com:3478' },       // Xiaomi - China
+    { urls: 'stun:stun.yy.com:3478' },           // YY - China
+    { urls: 'stun:stun.syncthing.net:3478' },    // Syncthing - Global
+    { urls: 'stun:stun.cloudflare.com:3478' },   // Cloudflare - Global
   ],
 };
 

@@ -104,16 +104,16 @@ async function handleWebSocket(request: Request, env: Env): Promise<Response> {
  */
 async function handleIceServers(env: Env): Promise<Response> {
   // Default STUN-only configuration (fallback if TURN not configured)
+  // Prioritize China-accessible servers, with global fallbacks
   const defaultIceServers = [
-    { urls: 'stun:stun.cloudflare.com:3478' },
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun3.l.google.com:19302' },
-  { urls: 'stun:stun4.l.google.com:19302' },
-  { urls: 'stun:stun.yy.com:3478' }, // China-accessible
-  { urls: 'stun:stun.miwifi.com:3478' }, // China-accessible
-  { urls: 'stun:stun.syncthing.net:3478' }
+    // China-accessible STUN servers (prioritized)
+    { urls: 'stun:stun.miwifi.com:3478' },      // Xiaomi - China
+    { urls: 'stun:stun.yy.com:3478' },          // YY - China
+    { urls: 'stun:stun.qq.com:3478' },          // Tencent - China
+    // Global STUN servers
+    { urls: 'stun:stun.cloudflare.com:3478' },  // Cloudflare
+    { urls: 'stun:stun.syncthing.net:3478' },   // Syncthing
+    { urls: 'stun:stun.nextcloud.com:3478' },   // Nextcloud
   ];
 
   // If TURN credentials are configured, fetch dynamic credentials
