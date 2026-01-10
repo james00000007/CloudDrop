@@ -14,14 +14,14 @@ import { cryptoManager } from './crypto.js';
 
 const CHUNK_SIZE = 64 * 1024; // 64KB chunks
 
-// Aggressive timeouts for faster fallback (max 5s total wait)
-const CONNECTION_TIMEOUT = 5000; // 5 seconds max - user should never wait longer
-const FAST_FALLBACK_TIMEOUT = 2000; // 2 seconds - switch to relay if P2P not progressing
-const CANDIDATE_GATHERING_TIMEOUT = 1500; // 1.5 seconds to gather initial candidates
-const SLOW_CONNECTION_THRESHOLD = 1500; // Show "slow connection" hint after 1.5 seconds
+// Optimized timeouts for better P2P success rate while maintaining reasonable wait time
+const CONNECTION_TIMEOUT = 10000; // 10 seconds max - give NAT traversal enough time
+const FAST_FALLBACK_TIMEOUT = 5000; // 5 seconds - allow more time for srflx/prflx candidates
+const CANDIDATE_GATHERING_TIMEOUT = 3000; // 3 seconds to gather initial candidates
+const SLOW_CONNECTION_THRESHOLD = 3000; // Show "slow connection" hint after 3 seconds
 const ICE_RESTART_DELAY = 500; // Fast restart
-const MAX_ICE_RESTARTS = 0; // No restarts - fail fast, use relay immediately
-const DISCONNECTED_TIMEOUT = 2000; // 2 seconds before switching to relay
+const MAX_ICE_RESTARTS = 2; // Allow 2 ICE restarts before switching to relay
+const DISCONNECTED_TIMEOUT = 3000; // 3 seconds before switching to relay
 
 // Minimal fallback (only used if server is unreachable)
 const FALLBACK_ICE_SERVERS = [
@@ -269,23 +269,24 @@ export class WebRTCManager {
     if (!this.prewarmEnabled || this.knownPeers.has(peerId)) {
       return;
     }
-    
+
     this.knownPeers.add(peerId);
-    
+
     // Delay prewarm slightly to avoid overwhelming on initial peer list
     setTimeout(async () => {
       // Only prewarm if no active connection/attempt exists
       if (!this.connections.has(peerId) && !this.pendingConnections.has(peerId) && !this.relayMode.get(peerId)) {
         console.log(`[WebRTC] Prewarming connection to ${peerId}`);
-        
+
         try {
-          // Try P2P with fast timeout
+          // Try P2P with fast timeout - but DON'T permanently mark as relay on failure
+          // This allows actual file transfer to retry P2P
           const result = await this._raceP2PWithFallbackSilent(peerId);
           console.log(`[WebRTC] Prewarm result for ${peerId}: ${result}`);
         } catch (err) {
-          console.log(`[WebRTC] Prewarm failed for ${peerId}: ${err.message}`);
-          // Prewarm failure - silently switch to relay
-          this._switchToRelay(peerId, null, true);
+          // Prewarm failure - just log, don't mark as relay
+          // Actual file transfer will make its own decision
+          console.log(`[WebRTC] Prewarm failed for ${peerId}: ${err.message} (will retry on actual transfer)`);
         }
       }
     }, 300 + Math.random() * 300); // Stagger prewarm requests
@@ -430,15 +431,18 @@ export class WebRTCManager {
   _updateConnectionQuality(peerId) {
     const types = this.candidateTypes.get(peerId);
     if (!types) return;
-    
+
     const quality = {
       hasHost: types.has('host'),
       hasSrflx: types.has('srflx'),
+      hasPrflx: types.has('prflx'),  // Peer reflexive - important for symmetric NAT
       hasRelay: types.has('relay'),
-      p2pPossible: types.has('host') || types.has('srflx'),
-      p2pLikely: types.has('srflx'), // Server reflexive = NAT traversal possible
+      // P2P is possible with host, srflx, or prflx candidates
+      p2pPossible: types.has('host') || types.has('srflx') || types.has('prflx'),
+      // P2P is likely with srflx or prflx (NAT traversal path exists)
+      p2pLikely: types.has('srflx') || types.has('prflx'),
     };
-    
+
     this.connectionQuality.set(peerId, quality);
     console.log(`[WebRTC] Connection quality for ${peerId}:`, quality);
   }
@@ -507,15 +511,16 @@ export class WebRTCManager {
       // Check if we should attempt restart or just fallback to relay
       const restartCount = this.iceRestartCounts.get(peerId) || 0;
       const quality = this.connectionQuality.get(peerId);
-      
-      // If P2P wasn't likely anyway or we've already tried, just use relay
-      if (!quality?.p2pLikely || restartCount >= MAX_ICE_RESTARTS) {
-        console.log(`[WebRTC] ICE failed for ${peerId}, fast-switching to relay`);
+
+      // Attempt ICE restart if P2P is possible (has any non-relay candidates) and we haven't exhausted restarts
+      // Use p2pPossible instead of p2pLikely to give host-only connections (LAN) a chance too
+      if (quality?.p2pPossible && restartCount < MAX_ICE_RESTARTS) {
+        console.log(`[WebRTC] ICE failed with ${peerId}, attempting restart ${restartCount + 1}/${MAX_ICE_RESTARTS}...`);
+        this._attemptIceRestart(peerId, pc);
+      } else {
+        console.log(`[WebRTC] ICE failed for ${peerId} (restarts: ${restartCount}/${MAX_ICE_RESTARTS}, p2pPossible: ${quality?.p2pPossible}), switching to relay`);
         // Silent switch if already in background recovery mode
         this._switchToRelay(peerId, 'P2P连接失败，已切换到中继传输', isBackgroundRecovery);
-      } else {
-        console.log(`[WebRTC] ICE failed with ${peerId}, attempting restart...`);
-        this._attemptIceRestart(peerId, pc);
       }
     } else if (state === 'connected' || state === 'completed') {
       // Reset restart counter on successful connection
@@ -1581,12 +1586,13 @@ export class WebRTCManager {
 
   /**
    * Silent version of _raceP2PWithFallback for prewarming
-   * No UI notifications, just silently determines the best connection mode
+   * No UI notifications, doesn't permanently mark as relay on timeout
+   * This allows actual file transfer to retry P2P connection
    */
   async _raceP2PWithFallbackSilent(peerId) {
     const racingState = { resolved: false, winner: null };
     this.connectionRacing.set(peerId, racingState);
-    
+
     // Create P2P connection attempt (silent - no notification)
     const p2pPromise = this._attemptP2PConnectionSilent(peerId).then(() => {
       if (!racingState.resolved) {
@@ -1601,31 +1607,32 @@ export class WebRTCManager {
     });
 
     // Fast fallback timer (shorter for prewarm)
-    const fallbackPromise = new Promise((resolve) => {
+    const fallbackPromise = new Promise((resolve, reject) => {
       const fallbackTimer = setTimeout(() => {
         if (!racingState.resolved) {
           const shouldFallback = this._shouldFastFallback(peerId) || !this._hasP2PProgress(peerId);
           if (shouldFallback) {
-            console.log(`[WebRTC] Prewarm fast-fallback for ${peerId}`);
-            this._switchToRelay(peerId, null, true); // Silent switch
-            resolve('relay');
+            console.log(`[WebRTC] Prewarm fast-fallback triggered for ${peerId} (not marking as relay)`);
+            // DON'T mark as relay - let actual transfer decide
+            reject(new Error('Prewarm timeout - will retry on actual transfer'));
           }
         }
       }, FAST_FALLBACK_TIMEOUT);
-      
+
       // Ultimate timeout
       const ultimateTimer = setTimeout(() => {
         clearTimeout(fallbackTimer);
         if (!racingState.resolved) {
-          console.log(`[WebRTC] Prewarm timeout for ${peerId}`);
-          this._switchToRelay(peerId, null, true); // Silent switch
-          resolve('relay');
+          console.log(`[WebRTC] Prewarm ultimate timeout for ${peerId} (not marking as relay)`);
+          // DON'T mark as relay - let actual transfer decide
+          reject(new Error('Prewarm ultimate timeout - will retry on actual transfer'));
         }
       }, CONNECTION_TIMEOUT);
-      
+
       p2pPromise.then(() => {
         clearTimeout(fallbackTimer);
         clearTimeout(ultimateTimer);
+        resolve('p2p');
       }).catch(() => {
         clearTimeout(fallbackTimer);
         clearTimeout(ultimateTimer);
@@ -1674,13 +1681,17 @@ export class WebRTCManager {
   _hasP2PProgress(peerId) {
     const pc = this.connections.get(peerId);
     const types = this.candidateTypes.get(peerId);
-    
-    // Has gathered some non-relay candidates?
-    const hasP2PCandidates = types && (types.has('host') || types.has('srflx'));
-    
+
+    // Has gathered some non-relay candidates? (including prflx for symmetric NAT)
+    const hasP2PCandidates = types && (
+      types.has('host') ||
+      types.has('srflx') ||
+      types.has('prflx')  // Important for symmetric NAT traversal
+    );
+
     // ICE is in a good state?
     const iceGood = pc && ['new', 'checking', 'connected', 'completed'].includes(pc.iceConnectionState);
-    
+
     return hasP2PCandidates && iceGood;
   }
 

@@ -4,6 +4,14 @@
  * Supports optional password protection for secure rooms
  */
 
+// WebSocket readyState constants (may not be available in Workers environment)
+const WS_READY_STATE = {
+  CONNECTING: 0,
+  OPEN: 1,
+  CLOSING: 2,
+  CLOSED: 3,
+};
+
 export interface Env {
   ROOM: DurableObjectNamespace;
 }
@@ -71,7 +79,49 @@ export class Room {
       return this.handleCheckPassword(request);
     }
 
+    if (url.pathname === '/debug') {
+      // Debug endpoint to check room state
+      return this.handleDebug();
+    }
+
     return new Response('Not Found', { status: 404 });
+  }
+
+  /**
+   * Debug endpoint - returns room state for diagnostics
+   */
+  private handleDebug(): Response {
+    const webSockets = this.state.getWebSockets();
+    const activePeers = this.getActivePeers();
+
+    // Collect detailed info about all WebSockets
+    const webSocketDetails = webSockets.map((ws, index) => {
+      const attachment = ws.deserializeAttachment() as PeerAttachment | null;
+      return {
+        index,
+        readyState: ws.readyState,
+        readyStateLabel: ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][ws.readyState] || 'UNKNOWN',
+        hasAttachment: !!attachment,
+        peerId: attachment?.id || null,
+        peerName: attachment?.name || null,
+      };
+    });
+
+    const debugInfo = {
+      totalWebSockets: webSockets.length,
+      activePeers: activePeers.size,
+      webSocketDetails,
+      peers: Array.from(activePeers.entries()).map(([id, { attachment }]) => ({
+        id,
+        name: attachment.name,
+        deviceType: attachment.deviceType,
+      })),
+      hasPassword: this.passwordHash !== null,
+    };
+
+    return new Response(JSON.stringify(debugInfo, null, 2), {
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   /**
@@ -194,18 +244,27 @@ export class Room {
 
   /**
    * Get all active peers from WebSocket attachments (survives hibernation)
+   * Only returns peers with OPEN WebSocket connections
    */
   private getActivePeers(): Map<string, { ws: WebSocket; attachment: PeerAttachment }> {
     const peers = new Map<string, { ws: WebSocket; attachment: PeerAttachment }>();
     const webSockets = this.state.getWebSockets();
-    
+
+    console.log(`[Room] getActivePeers: total WebSockets=${webSockets.length}`);
+
     for (const ws of webSockets) {
       const attachment = ws.deserializeAttachment() as PeerAttachment | null;
-      if (attachment && attachment.id) {
+      const readyState = ws.readyState;
+
+      console.log(`[Room] WebSocket: readyState=${readyState}, hasAttachment=${!!attachment}, peerId=${attachment?.id || 'none'}`);
+
+      // Only include WebSockets that are OPEN (readyState === 1) and have valid attachment
+      // Use explicit constant as WebSocket.OPEN may not be available in Workers
+      if (attachment && attachment.id && readyState === WS_READY_STATE.OPEN) {
         peers.set(attachment.id, { ws, attachment });
       }
     }
-    
+
     return peers;
   }
 
@@ -282,6 +341,8 @@ export class Room {
     const tags = this.state.getTags(ws);
     const roomCode = tags.length > 0 ? tags[0] : '';
 
+    console.log(`[Room] handleJoin: peerId=${peerId}, roomCode=${roomCode}, name=${joinData.name}`);
+
     // Create peer attachment data
     const attachment: PeerAttachment = {
       id: peerId,
@@ -298,9 +359,13 @@ export class Room {
 
     // Get all other active peers from their WebSocket attachments
     const activePeers = this.getActivePeers();
+    console.log(`[Room] Active peers count: ${activePeers.size}, IDs: ${Array.from(activePeers.keys()).join(', ')}`);
+
     const otherPeers = Array.from(activePeers.entries())
       .filter(([id]) => id !== peerId)
       .map(([id, { attachment: p }]) => ({ id, name: p.name, deviceType: p.deviceType, browserInfo: p.browserInfo }));
+
+    console.log(`[Room] Other peers to send: ${otherPeers.length}`);
 
     // Send peer their ID, room code, and list of other peers
     ws.send(JSON.stringify({
@@ -315,6 +380,8 @@ export class Room {
       type: 'peer-joined',
       data: { id: peerId, name: attachment.name, deviceType: attachment.deviceType, browserInfo: attachment.browserInfo },
     }, peerId);
+
+    console.log(`[Room] Broadcast peer-joined for ${peerId} to ${activePeers.size - 1} peers`);
   }
 
   /**
@@ -341,16 +408,22 @@ export class Room {
     const fromPeerId = this.getPeerIdFromWs(ws);
     if (!fromPeerId) return;
 
-    // Find target peer from active connections
-    const activePeers = this.getActivePeers();
-    const targetPeer = activePeers.get(msg.to);
-    
-    if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
-      targetPeer.ws.send(JSON.stringify({
-        type: msg.type,
-        from: fromPeerId,
-        data: msg.data,
-      }));
+    // Find target peer - iterate through all WebSockets
+    const webSockets = this.state.getWebSockets();
+    for (const targetWs of webSockets) {
+      try {
+        const attachment = targetWs.deserializeAttachment() as PeerAttachment | null;
+        if (attachment && attachment.id === msg.to) {
+          targetWs.send(JSON.stringify({
+            type: msg.type,
+            from: fromPeerId,
+            data: msg.data,
+          }));
+          break;
+        }
+      } catch (e) {
+        console.error(`[Room] Failed to send signaling to ${msg.to}:`, e);
+      }
     }
   }
 
@@ -363,16 +436,11 @@ export class Room {
     const fromPeerId = this.getPeerIdFromWs(ws);
     if (!fromPeerId) return;
 
-    const activePeers = this.getActivePeers();
-    const targetPeer = activePeers.get(msg.to);
-    
-    if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
-      targetPeer.ws.send(JSON.stringify({
-        type: 'text',
-        from: fromPeerId,
-        data: msg.data,
-      }));
-    }
+    this.sendToPeer(msg.to, {
+      type: 'text',
+      from: fromPeerId,
+      data: msg.data,
+    });
   }
 
   /**
@@ -385,16 +453,11 @@ export class Room {
     const fromPeerId = this.getPeerIdFromWs(ws);
     if (!fromPeerId) return;
 
-    const activePeers = this.getActivePeers();
-    const targetPeer = activePeers.get(msg.to);
-    
-    if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
-      targetPeer.ws.send(JSON.stringify({
-        type: 'relay-data',
-        from: fromPeerId,
-        data: msg.data,
-      }));
-    }
+    this.sendToPeer(msg.to, {
+      type: 'relay-data',
+      from: fromPeerId,
+      data: msg.data,
+    });
   }
 
   /**
@@ -406,16 +469,11 @@ export class Room {
     const fromPeerId = this.getPeerIdFromWs(ws);
     if (!fromPeerId) return;
 
-    const activePeers = this.getActivePeers();
-    const targetPeer = activePeers.get(msg.to);
-    
-    if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
-      targetPeer.ws.send(JSON.stringify({
-        type: 'key-exchange',
-        from: fromPeerId,
-        data: msg.data,
-      }));
-    }
+    this.sendToPeer(msg.to, {
+      type: 'key-exchange',
+      from: fromPeerId,
+      data: msg.data,
+    });
   }
 
   /**
@@ -428,30 +486,68 @@ export class Room {
     const fromPeerId = this.getPeerIdFromWs(ws);
     if (!fromPeerId) return;
 
-    const activePeers = this.getActivePeers();
-    const targetPeer = activePeers.get(msg.to);
-    
-    if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
-      targetPeer.ws.send(JSON.stringify({
-        type: msg.type, // 'file-request' or 'file-response'
-        from: fromPeerId,
-        data: msg.data,
-      }));
+    this.sendToPeer(msg.to, {
+      type: msg.type, // 'file-request' or 'file-response' or 'file-cancel'
+      from: fromPeerId,
+      data: msg.data,
+    });
+  }
+
+  /**
+   * Send message to a specific peer by ID
+   * Iterates through all WebSockets to find the target
+   */
+  private sendToPeer(targetPeerId: string, message: object): boolean {
+    const webSockets = this.state.getWebSockets();
+
+    for (const ws of webSockets) {
+      try {
+        const attachment = ws.deserializeAttachment() as PeerAttachment | null;
+        if (attachment && attachment.id === targetPeerId) {
+          ws.send(JSON.stringify(message));
+          return true;
+        }
+      } catch (e) {
+        console.error(`[Room] Failed to send to ${targetPeerId}:`, e);
+      }
     }
+
+    return false;
   }
 
   /**
    * Broadcast message to all peers except excluded one
+   * Uses direct WebSocket iteration with try-catch for robustness
    */
   private broadcast(msg: SignalingMessage, excludePeerId?: string): void {
     const message = JSON.stringify(msg);
-    const activePeers = this.getActivePeers();
-    
-    for (const [peerId, { ws }] of activePeers.entries()) {
-      if (peerId !== excludePeerId && ws.readyState === WebSocket.OPEN) {
+    const webSockets = this.state.getWebSockets();
+
+    console.log(`[Room] Broadcasting to ${webSockets.length} WebSockets, excluding ${excludePeerId || 'none'}`);
+
+    let sentCount = 0;
+    let errorCount = 0;
+
+    for (const ws of webSockets) {
+      try {
+        const attachment = ws.deserializeAttachment() as PeerAttachment | null;
+
+        // Skip if no attachment, no ID, or is the excluded peer
+        if (!attachment || !attachment.id || attachment.id === excludePeerId) {
+          continue;
+        }
+
+        // Try to send regardless of readyState - let the send fail if connection is bad
         ws.send(message);
+        sentCount++;
+        console.log(`[Room] Sent to ${attachment.id} (${attachment.name})`);
+      } catch (e) {
+        errorCount++;
+        console.error(`[Room] Failed to send message:`, e);
       }
     }
+
+    console.log(`[Room] Broadcast complete: sent=${sentCount}, errors=${errorCount}`);
   }
 
   /**
