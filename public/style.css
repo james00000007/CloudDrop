@@ -3257,6 +3257,102 @@ body::before {
   height: 18px;
 }
 
+/* Quick Join Section - Gradient Border Style */
+.quick-join-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-top: var(--space-2xl);
+  width: 100%;
+}
+
+.quick-join-label {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Gradient border container */
+.quick-join-code-container {
+  position: relative;
+  padding: 2px;
+  background: var(--accent-gradient);
+  border-radius: 16px;
+  box-shadow: 0 0 30px rgba(96, 165, 250, 0.15), 0 0 60px rgba(167, 139, 250, 0.1);
+  transition: box-shadow var(--transition-normal);
+}
+
+.quick-join-code-container:focus-within {
+  box-shadow: 0 0 40px rgba(96, 165, 250, 0.25), 0 0 80px rgba(167, 139, 250, 0.15);
+}
+
+/* Inner container */
+.quick-join-code-inputs {
+  display: flex;
+  align-items: center;
+  background: var(--bg-primary);
+  border-radius: 14px;
+  padding: 6px 12px;
+  gap: 0;
+}
+
+/* Separator between digits */
+.code-separator {
+  width: 1px;
+  height: 24px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  margin: 0 2px;
+}
+
+/* Individual digit input */
+.code-digit {
+  width: 42px;
+  height: 52px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+  caret-color: var(--accent-primary);
+  transition: all var(--transition-fast);
+  border-radius: var(--radius-sm);
+}
+
+.code-digit:focus {
+  outline: none;
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.code-digit.filled {
+  color: var(--accent-primary);
+  text-shadow: 0 0 10px rgba(96, 165, 250, 0.5);
+}
+
+.code-digit::placeholder {
+  color: var(--text-muted);
+  opacity: 0.2;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  .code-digit {
+    width: 36px;
+    height: 46px;
+    font-size: 1.25rem;
+  }
+
+  .quick-join-code-inputs {
+    padding: 4px 8px;
+  }
+
+  .code-separator {
+    height: 20px;
+  }
+}
+
 /* ============================================
    Pull to Refresh Indicator (Visual hint)
    ============================================ */

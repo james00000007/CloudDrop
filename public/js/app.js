@@ -199,7 +199,7 @@ class CloudDrop {
 
     // Validate room code
     if (!roomCode || !ROOM.CODE_PATTERN.test(roomCode)) {
-      ui.showToast(`房间号格式无效 (${ROOM.CODE_MIN_LENGTH}-${ROOM.CODE_MAX_LENGTH}位字母数字)`, 'error');
+      ui.showToast('房间号格式无效（需要6位字母数字）', 'error');
       return false;
     }
 
@@ -954,7 +954,7 @@ class CloudDrop {
 
   joinRoom(code) {
     if (!code || !ROOM.CODE_PATTERN.test(code)) {
-      ui.showToast(`房间号格式无效 (${ROOM.CODE_MIN_LENGTH}-${ROOM.CODE_MAX_LENGTH}位字母数字)`, 'error');
+      ui.showToast('房间号格式无效（需要6位字母数字）', 'error');
       return;
     }
     // Navigate to new room
@@ -1716,6 +1716,134 @@ class CloudDrop {
       document.getElementById('roomInput').value = '';
       ui.showModal('joinRoomModal');
     });
+
+    // Quick join 6-digit input handling
+    this.setupQuickJoinInputs();
+  }
+
+  // Setup 6-digit code input interactions
+  setupQuickJoinInputs() {
+    const container = document.getElementById('quickJoinInputs');
+    if (!container) return;
+
+    const inputs = container.querySelectorAll('.code-digit');
+
+    inputs.forEach((input, index) => {
+      // Handle input
+      input.addEventListener('input', (e) => {
+        let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+        // Take only the last character if multiple were entered
+        if (value.length > 1) {
+          value = value.slice(-1);
+        }
+
+        e.target.value = value;
+
+        // Update filled state
+        e.target.classList.toggle('filled', value.length > 0);
+
+        // Auto-advance to next input
+        if (value && index < inputs.length - 1) {
+          inputs[index + 1].focus();
+        }
+
+        // Auto-submit when all 6 digits are filled
+        if (this.getQuickJoinCode().length === 6) {
+          this.handleQuickJoin();
+        }
+      });
+
+      // Handle keydown for navigation
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace') {
+          if (!e.target.value && index > 0) {
+            // Move to previous input on backspace if current is empty
+            inputs[index - 1].focus();
+            inputs[index - 1].value = '';
+            inputs[index - 1].classList.remove('filled');
+          } else {
+            e.target.classList.remove('filled');
+          }
+        } else if (e.key === 'ArrowLeft' && index > 0) {
+          e.preventDefault();
+          inputs[index - 1].focus();
+        } else if (e.key === 'ArrowRight' && index < inputs.length - 1) {
+          e.preventDefault();
+          inputs[index + 1].focus();
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          this.handleQuickJoin();
+        }
+      });
+
+      // Handle paste
+      input.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const pasteData = e.clipboardData.getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+        // Distribute pasted characters across inputs
+        for (let i = 0; i < Math.min(pasteData.length, inputs.length - index); i++) {
+          inputs[index + i].value = pasteData[i];
+          inputs[index + i].classList.toggle('filled', pasteData[i].length > 0);
+        }
+
+        // Focus the next empty input or the last one
+        const nextEmptyIndex = Math.min(index + pasteData.length, inputs.length - 1);
+        inputs[nextEmptyIndex].focus();
+
+        // Auto-submit if 6 digits filled
+        if (this.getQuickJoinCode().length === 6) {
+          this.handleQuickJoin();
+        }
+      });
+
+      // Handle focus - select content
+      input.addEventListener('focus', () => {
+        input.select();
+      });
+    });
+  }
+
+  // Get the combined code from all 6 inputs
+  getQuickJoinCode() {
+    const container = document.getElementById('quickJoinInputs');
+    if (!container) return '';
+
+    const inputs = container.querySelectorAll('.code-digit');
+    return Array.from(inputs).map(input => input.value).join('');
+  }
+
+  // Handle quick join room action
+  async handleQuickJoin() {
+    const code = this.getQuickJoinCode();
+
+    if (!code || code.length !== 6) {
+      ui.showToast('请输入完整的6位房间号', 'error');
+      const container = document.getElementById('quickJoinInputs');
+      container?.querySelector('.code-digit')?.focus();
+      return;
+    }
+
+    if (!ROOM.CODE_PATTERN.test(code)) {
+      ui.showToast('房间号格式无效（需要6位字母数字）', 'error');
+      return;
+    }
+
+    this.triggerHaptic('light');
+
+    // Check if room needs password
+    const needsPassword = await this.checkRoomPassword(code);
+    if (needsPassword) {
+      // Room needs password, show modal with password input
+      document.getElementById('roomInput').value = code;
+      ui.showJoinRoomPasswordSection();
+      ui.showModal('joinRoomModal');
+      ui.showToast('此房间需要密码', 'warning');
+    } else {
+      // Regular room, join directly
+      this.joinRoom(code);
+    }
   }
 
   // Show quick actions panel

@@ -93,10 +93,11 @@ export const UI = {
 // Room Configuration
 // =============================================================================
 export const ROOM = {
-  // Room code format
-  CODE_MIN_LENGTH: 4,
-  CODE_MAX_LENGTH: 16,
-  CODE_PATTERN: /^[a-zA-Z0-9]{4,16}$/,
+  // Room code format - fixed 6 digits
+  CODE_LENGTH: 6,
+  CODE_MIN_LENGTH: 6,  // Keep for backward compatibility
+  CODE_MAX_LENGTH: 6,  // Keep for backward compatibility
+  CODE_PATTERN: /^[a-zA-Z0-9]{6}$/,
   CODE_CHARS: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', // Exclude ambiguous chars (0,O,1,I)
 
   // Password requirements

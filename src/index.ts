@@ -61,7 +61,7 @@ async function handleWebSocket(request: Request, env: Env): Promise<Response> {
   let roomId: string;
   let roomCode: string; // User-friendly room code to display
 
-  if (explicitRoom && /^[a-zA-Z0-9]{4,16}$/.test(explicitRoom)) {
+  if (explicitRoom && /^[a-zA-Z0-9]{6}$/.test(explicitRoom)) {
     // Explicit room code from URL parameter
     roomCode = explicitRoom.toUpperCase();
   } else {
@@ -239,7 +239,7 @@ async function handleSetRoomPassword(request: Request, env: Env): Promise<Respon
   const url = new URL(request.url);
   const roomParam = url.searchParams.get('room');
 
-  if (!roomParam || !/^[a-zA-Z0-9]{4,16}$/.test(roomParam)) {
+  if (!roomParam || !/^[a-zA-Z0-9]{6}$/.test(roomParam)) {
     return new Response(JSON.stringify({
       success: false,
       error: 'Invalid room code format'
@@ -272,7 +272,7 @@ async function handleCheckRoomPassword(request: Request, env: Env): Promise<Resp
   const url = new URL(request.url);
   const roomParam = url.searchParams.get('room');
 
-  if (!roomParam || !/^[a-zA-Z0-9]{4,16}$/.test(roomParam)) {
+  if (!roomParam || !/^[a-zA-Z0-9]{6}$/.test(roomParam)) {
     return new Response(JSON.stringify({
       success: false,
       error: 'Invalid room code format'
