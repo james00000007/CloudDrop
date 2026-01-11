@@ -63,8 +63,8 @@
       <br><em>移动端 - 主界面</em>
     </td>
     <td align="center">
-      <img src="docs/screenshots/mobile-share.png" width="200" alt="移动端分享">
-      <br><em>移动端 - 房间分享</em>
+      <img src="docs/screenshots/mobile-transfer.png" width="200" alt="移动端文件传输">
+      <br><em>移动端 - 文件传输</em>
     </td>
   </tr>
 </table>

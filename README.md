@@ -63,8 +63,8 @@
       <br><em>Mobile - Main Interface</em>
     </td>
     <td align="center">
-      <img src="docs/screenshots/mobile-share.png" width="200" alt="Mobile Share">
-      <br><em>Mobile - Room Sharing</em>
+      <img src="docs/screenshots/mobile-transfer.png" width="200" alt="Mobile File Transfer">
+      <br><em>Mobile - File Transfer</em>
     </td>
   </tr>
 </table>
