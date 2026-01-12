@@ -30,6 +30,7 @@ class CloudDrop {
     this.unreadMessages = new Map(); // peerId -> unread count
     this.pendingFileRequest = null; // Current pending file request waiting for user decision
     this.currentTransfer = null; // Current active transfer { peerId, fileId, fileName, direction }
+    this.pendingImage = null; // Pending image to send { dataUrl, file }
 
     // Trusted devices - auto-accept files from these devices
     this.trustedDevices = this.loadTrustedDevices();
@@ -511,12 +512,30 @@ class CloudDrop {
     };
 
     this.webrtc.onTextReceived = (peerId, text) => {
-      this.saveMessage(peerId, { type: 'received', text, timestamp: Date.now() });
+      // Check if it's an image message (JSON with type: 'image')
+      let messageData;
+      try {
+        messageData = JSON.parse(text);
+      } catch (e) {
+        // Not JSON, treat as plain text
+        messageData = { type: 'text', content: text };
+      }
+
+      if (messageData.type === 'image') {
+        this.saveMessage(peerId, {
+          type: 'received',
+          messageType: 'image',
+          imageData: messageData.data,
+          timestamp: Date.now()
+        });
+      } else {
+        const textContent = messageData.content || text;
+        this.saveMessage(peerId, { type: 'received', text: textContent, timestamp: Date.now() });
+      }
 
       // If chat panel is open for this peer, update UI immediately
       if (this.currentChatPeer && this.currentChatPeer.id === peerId) {
         this.renderChatHistory(peerId);
-        // Play a subtle sound? (Optional)
         return;
       }
 
@@ -527,7 +546,12 @@ class CloudDrop {
 
       // Show toast notification
       const peer = this.peers.get(peerId);
-      ui.showToast(`${peer?.name || '未知设备'}: ${text.substring(0, 30)}${text.length > 30 ? '...' : ''}`, 'info');
+      if (messageData.type === 'image') {
+        ui.showToast(`${peer?.name || '未知设备'} 发送了一张图片`, 'info');
+      } else {
+        const displayText = messageData.content || text;
+        ui.showToast(`${peer?.name || '未知设备'}: ${displayText.substring(0, 30)}${displayText.length > 30 ? '...' : ''}`, 'info');
+      }
     };
 
     // Transfer start callback (for tracking fileId)
@@ -1020,6 +1044,127 @@ class CloudDrop {
     }
   }
 
+  /**
+   * Send an image message
+   * @param {string} peerId - Target peer ID
+   * @param {string} imageDataUrl - Base64 data URL of the image
+   */
+  async sendImageMessage(peerId, imageDataUrl) {
+    if (!imageDataUrl) return false;
+
+    try {
+      // Create message payload
+      const payload = JSON.stringify({
+        type: 'image',
+        data: imageDataUrl
+      });
+
+      await this.webrtc.sendText(peerId, payload);
+      this.saveMessage(peerId, {
+        type: 'sent',
+        messageType: 'image',
+        imageData: imageDataUrl,
+        timestamp: Date.now()
+      });
+      return true;
+    } catch (e) {
+      ui.showToast(`图片发送失败: ${e.message}`, 'error');
+      return false;
+    }
+  }
+
+  /**
+   * Compress and resize image for sending
+   * @param {File} file - Image file
+   * @param {number} maxWidth - Maximum width (default 1200)
+   * @param {number} quality - JPEG quality 0-1 (default 0.8)
+   * @returns {Promise<string>} - Base64 data URL
+   */
+  async compressImage(file, maxWidth = 1200, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Calculate new dimensions
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+
+          // Create canvas and draw resized image
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to data URL
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(dataUrl);
+        };
+        img.onerror = () => reject(new Error('图片加载失败'));
+        img.src = e.target.result;
+      };
+      reader.onerror = () => reject(new Error('文件读取失败'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /**
+   * Show image preview before sending
+   * @param {File} file - Image file
+   */
+  async showImagePreview(file) {
+    try {
+      const dataUrl = await this.compressImage(file);
+      this.pendingImage = { dataUrl, file };
+
+      const preview = document.getElementById('chatImagePreview');
+      const previewImg = document.getElementById('previewImage');
+
+      previewImg.src = dataUrl;
+      preview.style.display = 'block';
+    } catch (e) {
+      ui.showToast(`图片预览失败: ${e.message}`, 'error');
+    }
+  }
+
+  /**
+   * Clear pending image preview
+   */
+  clearImagePreview() {
+    this.pendingImage = null;
+    const preview = document.getElementById('chatImagePreview');
+    const previewImg = document.getElementById('previewImage');
+
+    preview.style.display = 'none';
+    previewImg.src = '';
+  }
+
+  /**
+   * Show image in fullscreen modal
+   * @param {string} imageUrl - Image URL or data URL
+   */
+  showImageFullscreen(imageUrl) {
+    const modal = document.getElementById('imageFullscreenModal');
+    const img = document.getElementById('fullscreenImage');
+
+    img.src = imageUrl;
+    modal.classList.add('active');
+  }
+
+  /**
+   * Hide fullscreen image modal
+   */
+  hideImageFullscreen() {
+    const modal = document.getElementById('imageFullscreenModal');
+    modal.classList.remove('active');
+  }
+
   openChatPanel(peer) {
     this.currentChatPeer = peer;
     document.getElementById('chatTitle').textContent = `与 ${peer.name} 的消息`;
@@ -1049,7 +1194,7 @@ class CloudDrop {
       emptyEl.innerHTML = `
         <div class="chat-empty-icon">💬</div>
         <p class="chat-empty-text">还没有消息</p>
-        <p class="chat-empty-hint">在下方输入框发送第一条消息吧</p>
+        <p class="chat-empty-hint">在下方输入框发送第一条消息或图片吧</p>
       `;
       container.appendChild(emptyEl);
       return;
@@ -1066,28 +1211,60 @@ class CloudDrop {
       if (msg.sending) statusText = '发送中...';
       if (msg.failed) statusText = '发送失败 · 点击重试';
 
-      msgEl.innerHTML = `
-        <div class="chat-bubble-wrapper">
-          <div class="chat-bubble">${ui.escapeHtml(msg.text)}</div>
-          <button class="chat-copy-btn" title="复制消息">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2"/>
-              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-            </svg>
-          </button>
-        </div>
-        <div class="chat-time">${statusText}</div>
-      `;
+      // Check if it's an image message
+      if (msg.messageType === 'image' && msg.imageData) {
+        msgEl.innerHTML = `
+          <div class="chat-bubble-wrapper">
+            <div class="chat-bubble chat-bubble-image">
+              <img src="${msg.imageData}" alt="图片消息" loading="lazy">
+            </div>
+            <button class="chat-copy-btn" title="复制图片">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+            </button>
+          </div>
+          <div class="chat-time">${statusText}</div>
+        `;
 
-      // Add copy button functionality
-      const copyBtn = msgEl.querySelector('.chat-copy-btn');
-      copyBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.copyMessageText(msg.text, copyBtn);
-      });
+        // Add click handler for fullscreen view
+        const img = msgEl.querySelector('.chat-bubble-image img');
+        img.addEventListener('click', () => {
+          this.showImageFullscreen(msg.imageData);
+        });
+
+        // Add copy button functionality for image
+        const copyBtn = msgEl.querySelector('.chat-copy-btn');
+        copyBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.copyImageToClipboard(msg.imageData, copyBtn);
+        });
+      } else {
+        // Text message
+        msgEl.innerHTML = `
+          <div class="chat-bubble-wrapper">
+            <div class="chat-bubble">${ui.escapeHtml(msg.text)}</div>
+            <button class="chat-copy-btn" title="复制消息">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+            </button>
+          </div>
+          <div class="chat-time">${statusText}</div>
+        `;
+
+        // Add copy button functionality
+        const copyBtn = msgEl.querySelector('.chat-copy-btn');
+        copyBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.copyMessageText(msg.text, copyBtn);
+        });
+      }
 
       // Add click event for retry on failed messages
-      if (msg.failed) {
+      if (msg.failed && !msg.messageType) {
         msgEl.style.cursor = 'pointer';
         msgEl.addEventListener('click', () => this.retryMessage(peerId, index));
       }
@@ -1127,6 +1304,44 @@ class CloudDrop {
       }, 1500);
     } catch (e) {
       ui.showToast('复制失败', 'error');
+    }
+  }
+
+  /**
+   * Copy image to clipboard
+   * @param {string} dataUrl - Image data URL
+   * @param {HTMLElement} btn - Copy button element for feedback
+   */
+  async copyImageToClipboard(dataUrl, btn) {
+    try {
+      // Check if browser supports clipboard write
+      if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') {
+        ui.showToast('当前浏览器不支持复制图片，请右键图片自行复制', 'warning');
+        return;
+      }
+
+      // Convert data URL to Blob
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+
+      // Copy as image
+      const item = new ClipboardItem({
+        [blob.type]: blob
+      });
+      await navigator.clipboard.write([item]);
+
+      // Show success feedback
+      btn.classList.add('copied');
+      const originalTitle = btn.title;
+      btn.title = '已复制';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.title = originalTitle;
+      }, 1500);
+      ui.showToast('图片已复制到剪贴板', 'success');
+    } catch (e) {
+      console.error('Copy image failed:', e);
+      ui.showToast('复制失败，请右键图片自行复制', 'error');
     }
   }
 
@@ -1497,10 +1712,126 @@ class CloudDrop {
     document.getElementById('chatInput')?.addEventListener('keydown', async (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        const btn = document.getElementById('sendChatMessage');
-        if (btn) btn.click();
+        // If there's a pending image, send it
+        if (this.pendingImage) {
+          await this.handleSendImageMessage();
+        } else {
+          const btn = document.getElementById('sendChatMessage');
+          if (btn) btn.click();
+        }
       }
     });
+
+    // Image attachment button
+    document.getElementById('attachImageBtn')?.addEventListener('click', () => {
+      const imageInput = document.getElementById('chatImageInput');
+      if (imageInput) imageInput.click();
+    });
+
+    // Image file input change
+    document.getElementById('chatImageInput')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        await this.showImagePreview(file);
+      }
+      // Reset input so same file can be selected again
+      e.target.value = '';
+    });
+
+    // Paste image from clipboard
+    document.getElementById('chatInput')?.addEventListener('paste', async (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            await this.showImagePreview(file);
+          }
+          return;
+        }
+      }
+    });
+
+    // Also support paste on the chat panel container
+    document.getElementById('chatPanel')?.addEventListener('paste', async (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            await this.showImagePreview(file);
+          }
+          return;
+        }
+      }
+    });
+
+    // Remove preview image button
+    document.getElementById('removePreviewImage')?.addEventListener('click', () => {
+      this.clearImagePreview();
+    });
+
+    // Close fullscreen image modal
+    document.getElementById('closeFullscreenImage')?.addEventListener('click', () => {
+      this.hideImageFullscreen();
+    });
+
+    document.getElementById('imageFullscreenModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'imageFullscreenModal') {
+        this.hideImageFullscreen();
+      }
+    });
+
+    // Modify send button to handle both text and image
+    const originalSendHandler = document.getElementById('sendChatMessage');
+    if (originalSendHandler) {
+      originalSendHandler.addEventListener('click', async () => {
+        // If there's a pending image, send it instead
+        if (this.pendingImage && this.currentChatPeer) {
+          await this.handleSendImageMessage();
+        }
+      }, true); // Use capture phase to run before the original handler
+    }
+  }
+
+  /**
+   * Handle sending image message from chat panel
+   */
+  async handleSendImageMessage() {
+    if (!this.pendingImage || !this.currentChatPeer) return;
+
+    const { dataUrl } = this.pendingImage;
+    const btn = document.getElementById('sendChatMessage');
+
+    // Clear preview first
+    this.clearImagePreview();
+
+    // Disable button during send
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add('sending');
+    }
+
+    try {
+      const success = await this.sendImageMessage(this.currentChatPeer.id, dataUrl);
+      if (success) {
+        this.renderChatHistory(this.currentChatPeer.id);
+        ui.showToast('图片已发送', 'success');
+      }
+    } catch (e) {
+      ui.showToast(`图片发送失败: ${e.message}`, 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('sending');
+      }
+    }
   }
 
   // Desktop share popover setup

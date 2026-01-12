@@ -2757,6 +2757,206 @@ body::before {
 .chat-input:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ============================================
+   Chat Image Support
+   ============================================ */
+.btn-attach {
+  width: 40px;
+  height: 40px;
+  background: var(--bg-glass);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.btn-attach:hover {
+  background: var(--bg-glass-hover);
+  color: var(--accent-primary);
+  border-color: rgba(96, 165, 250, 0.3);
+}
+
+.btn-attach:active {
+  transform: scale(0.95);
+}
+
+.btn-attach svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Image Preview Area */
+.chat-image-preview {
+  padding: var(--space-md);
+  background: var(--bg-glass);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.preview-image-container {
+  position: relative;
+  display: inline-block;
+  max-width: 200px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.preview-image-container img {
+  display: block;
+  max-width: 100%;
+  max-height: 150px;
+  object-fit: contain;
+  background: var(--bg-secondary);
+}
+
+.preview-remove-btn {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.preview-remove-btn:hover {
+  background: var(--status-error);
+  transform: scale(1.1);
+}
+
+.preview-remove-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Chat Message Image */
+.chat-bubble-image {
+  padding: var(--space-xs);
+  background: transparent;
+}
+
+.chat-bubble-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.chat-bubble-image img:hover {
+  transform: scale(1.02);
+}
+
+.chat-message.sent .chat-bubble-image {
+  background: transparent;
+}
+
+.chat-message.received .chat-bubble-image {
+  background: transparent;
+}
+
+/* Image Loading State */
+.chat-bubble-image.loading {
+  min-width: 100px;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-glass);
+  border-radius: var(--radius-md);
+}
+
+.chat-bubble-image.loading::after {
+  content: '';
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--text-muted);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Image Fullscreen Modal */
+.image-fullscreen-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.95);
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition-normal);
+}
+
+.image-fullscreen-modal.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.image-fullscreen-modal img {
+  max-width: 95vw;
+  max-height: 95vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+
+.image-fullscreen-close {
+  position: absolute;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.image-fullscreen-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.image-fullscreen-close svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Mobile optimizations for chat images */
+@media (max-width: 640px) {
+  .btn-attach {
+    width: 44px;
+    height: 44px;
+  }
+
+  .chat-bubble-image img {
+    max-height: 200px;
+  }
+
+  .preview-image-container {
+    max-width: 160px;
+  }
+
+  .preview-image-container img {
+    max-height: 120px;
+  }
+}
+
+/* ============================================
    Desktop Share Popover
    ============================================ */
 .share-popover {
