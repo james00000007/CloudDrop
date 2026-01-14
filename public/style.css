@@ -1269,7 +1269,7 @@ body::before {
 
 /* GitHub link in header */
 .github-link {
-  margin-left: var(--space-md);
+  margin-left: var(--space-xs);
   text-decoration: none;
   color: var(--text-secondary);
   transition: color var(--transition-fast), transform var(--transition-fast);
@@ -1678,7 +1678,7 @@ body::before {
    ============================================ */
 .toast-container {
   position: fixed;
-  top: var(--space-xl);
+  top: 80px;
   right: var(--space-xl);
   display: flex;
   flex-direction: column;
@@ -4344,5 +4344,216 @@ html {
   .password-strength-text {
     text-align: left;
     margin-top: 2px;
+  }
+}
+
+/* ============================================
+   Language Switcher Styles
+   ============================================ */
+.language-switcher {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--space-lg); /* Push right to group with GitHub icon */
+}
+
+.language-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.language-btn:hover {
+  transform: scale(1.1);
+}
+
+.language-btn:active {
+  transform: scale(1.05);
+}
+
+/* Flag styling - elegant floating design */
+.language-btn .current-language-flag {
+  width: 22px;
+  height: 15px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: box-shadow 0.25s ease;
+}
+
+.language-btn:hover .current-language-flag {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 0 16px rgba(96, 165, 250, 0.25);
+}
+
+/* Ensure flag SVG elements keep their colors */
+.language-btn .current-language-flag rect,
+.language-btn .current-language-flag polygon,
+.language-btn .current-language-flag circle {
+  stroke: none;
+}
+
+.language-btn .language-code {
+  display: none;
+}
+
+.language-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 165px;
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5),
+              0 4px 12px rgba(96, 165, 250, 0.1);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px) scale(0.95);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  overflow: hidden;
+  backdrop-filter: blur(16px);
+}
+
+.language-menu::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 16px;
+  width: 12px;
+  height: 12px;
+  background: var(--bg-secondary);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  transform: rotate(45deg);
+}
+
+.language-switcher:hover .language-menu,
+.language-menu:hover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.language-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.language-menu-item:hover {
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.08) 100%);
+  color: var(--text-primary);
+}
+
+.language-menu-item.active {
+  color: var(--primary);
+  font-weight: 600;
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0.15) 0%, rgba(167, 139, 250, 0.1) 100%);
+}
+
+.language-flag {
+  width: 22px;
+  height: 15px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.language-name {
+  flex: 1;
+}
+
+.language-menu-item .language-check {
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+  transition: all 0.2s ease;
+  color: var(--primary);
+  transform: scale(0.8);
+}
+
+.language-menu-item.active .language-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.language-menu-item + .language-menu-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Mobile Language Switcher */
+@media (max-width: 768px) {
+  .language-switcher {
+    order: 10; /* Move to end on mobile */
+  }
+
+  .language-btn .current-language-flag {
+    width: 20px;
+    height: 14px;
+  }
+
+  .language-menu {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%) translateY(-10px) scale(0.95);
+    min-width: 150px;
+  }
+
+  .language-menu::before {
+    right: auto;
+    left: 50%;
+    margin-left: -6px;
+  }
+
+  .language-switcher:hover .language-menu,
+  .language-menu:hover {
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+
+  .language-flag {
+    font-size: 16px;
+  }
+
+  .language-menu-item {
+    padding: 10px 14px;
+    gap: 8px;
+  }
+}
+
+/* Header Right Adjustments for Language Switcher */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .header-right {
+    gap: var(--space-sm);
   }
 }

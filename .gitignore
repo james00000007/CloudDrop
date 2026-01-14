@@ -25,3 +25,6 @@ Thumbs.db
 
 # Build output
 dist/
+
+# spec-workflow
+.spec-workflow/

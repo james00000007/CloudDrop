@@ -12,6 +12,7 @@
 
 import { cryptoManager } from './crypto.js';
 import { WEBRTC, P2P_RETRY } from './config.js';
+import { i18n } from './i18n.js';
 
 // Destructure config for convenience
 const {
@@ -786,7 +787,7 @@ export class WebRTCManager {
       }
       
       // Notify UI that we're connecting (only if we're actually creating new connection)
-      this._notifyConnectionState(peerId, 'connecting', '正在建立连接...');
+      this._notifyConnectionState(peerId, 'connecting', i18n.t('transfer.connection.establishing'));
       
       const pc = await this.createConnection(peerId);
 
@@ -1641,7 +1642,7 @@ export class WebRTCManager {
       if (!racingState.resolved) {
         racingState.resolved = true;
         racingState.winner = 'relay';
-        this._switchToRelay(peerId, '连接失败，已切换到中继传输');
+        this._switchToRelay(peerId, i18n.t('transfer.connection.failedSwitchRelay'));
         return 'relay';
       }
       // 如果已经 resolved（比如被 fallbackTimer 切换到中继），返回当前结果
@@ -1653,7 +1654,7 @@ export class WebRTCManager {
       // Show "slow connection" hint after threshold
       const slowTimer = setTimeout(() => {
         if (!racingState.resolved) {
-          this._notifyConnectionState(peerId, 'slow', '网络较慢，尝试中继传输...');
+          this._notifyConnectionState(peerId, 'slow', i18n.t('transfer.connection.slow'));
         }
       }, SLOW_CONNECTION_THRESHOLD);
       
@@ -1668,7 +1669,7 @@ export class WebRTCManager {
           
           if (shouldFallback) {
             console.log(`[WebRTC] Fast-fallback triggered for ${peerId}`);
-            this._switchToRelay(peerId, '已切换到中继传输，确保稳定连接');
+            this._switchToRelay(peerId, i18n.t('transfer.connection.switchedToRelay'));
             resolve('relay');
           } else {
             // P2P seems promising, give it more time
@@ -1684,7 +1685,7 @@ export class WebRTCManager {
         
         if (!racingState.resolved) {
           console.log(`[WebRTC] Ultimate timeout for ${peerId}, switching to relay`);
-          this._switchToRelay(peerId, '连接超时，已切换到中继传输');
+          this._switchToRelay(peerId, i18n.t('transfer.connection.timeoutSwitchRelay'));
           resolve('relay');
         }
       }, CONNECTION_TIMEOUT);

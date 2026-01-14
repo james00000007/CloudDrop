@@ -6,6 +6,7 @@ import { WebRTCManager } from './webrtc.js';
 import { cryptoManager } from './crypto.js';
 import * as ui from './ui.js';
 import { STORAGE_KEYS, ROOM } from './config.js';
+import { i18n } from './i18n.js';
 
 class CloudDrop {
   constructor() {
@@ -104,7 +105,7 @@ class CloudDrop {
     });
     this.saveTrustedDevices();
     this.updateTrustedBadge(peer.id, true);
-    ui.showToast(`已信任设备: ${peer.name}`, 'success');
+    ui.showToast(i18n.t('toast.trusted', { name: peer.name }), 'success');
   }
 
   /**
@@ -129,7 +130,7 @@ class CloudDrop {
     if (trusted && !existingBadge) {
       const badge = document.createElement('div');
       badge.className = 'peer-trusted-badge';
-      badge.title = '点击取消信任';
+      badge.title = i18n.t('settings.clickToUntrust');
       badge.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>`;
 
       // Click to untrust
@@ -139,16 +140,16 @@ class CloudDrop {
         if (!peer) return;
 
         const confirmed = await ui.showConfirmDialog({
-          title: '取消信任设备',
-          message: `确定要取消信任「<strong>${ui.escapeHtml(peer.name)}</strong>」吗？<br><br><span style="color: var(--text-muted)">取消后，该设备发送文件时需要您手动确认。</span>`,
-          confirmText: '取消信任',
-          cancelText: '保留信任',
+          title: i18n.t('settings.untrust'),
+          message: i18n.t('settings.confirmUntrust', { name: ui.escapeHtml(peer.name) }),
+          confirmText: i18n.t('settings.untrust'),
+          cancelText: i18n.t('settings.keepTrust'),
           type: 'warning'
         });
 
         if (confirmed) {
           this.untrustDevice(peer);
-          ui.showToast(`已取消信任: ${peer.name}`, 'info');
+          ui.showToast(i18n.t('toast.untrusted', { name: peer.name }), 'info');
         }
       });
 
@@ -194,13 +195,13 @@ class CloudDrop {
   async createSecureRoom(roomCode, password) {
     // Validate password
     if (!password || password.length < ROOM.PASSWORD_MIN_LENGTH) {
-      ui.showToast(`密码至少需要${ROOM.PASSWORD_MIN_LENGTH}位字符`, 'error');
+      ui.showToast(i18n.t('room.passwordMinLength'), 'error');
       return false;
     }
 
     // Validate room code
     if (!roomCode || !ROOM.CODE_PATTERN.test(roomCode)) {
-      ui.showToast('房间号格式无效（需要6位字母数字）', 'error');
+      ui.showToast(i18n.t('room.invalidCode'), 'error');
       return false;
     }
 
@@ -218,7 +219,7 @@ class CloudDrop {
       const result = await response.json();
 
       if (!result.success) {
-        ui.showToast(`创建失败: ${result.error}`, 'error');
+        ui.showToast(i18n.t('errors.connectionFailed'), 'error');
         return false;
       }
 
@@ -237,7 +238,7 @@ class CloudDrop {
       return true;
     } catch (error) {
       console.error('[App] Failed to create secure room:', error);
-      ui.showToast('创建加密房间失败', 'error');
+      ui.showToast(i18n.t('errors.connectionFailed'), 'error');
       return false;
     }
   }
@@ -265,7 +266,7 @@ class CloudDrop {
    */
   async joinSecureRoom(roomCode, password) {
     if (!password) {
-      ui.showToast('请输入房间密码', 'error');
+      ui.showToast(i18n.t('room.passwordRequired'), 'error');
       return false;
     }
 
@@ -291,7 +292,7 @@ class CloudDrop {
       return true;
     } catch (error) {
       console.error('[App] Failed to prepare for secure room:', error);
-      ui.showToast('加入加密房间失败', 'error');
+      ui.showToast(i18n.t('room.passwordError'), 'error');
       return false;
     }
   }
@@ -309,6 +310,9 @@ class CloudDrop {
   }
 
   async init() {
+    // Initialize i18n first
+    await i18n.init({ defaultLocale: 'zh' });
+
     await cryptoManager.generateKeyPair();
     // Check URL for room code - only use explicit room parameter
     // If no room param, let server assign room based on IP
@@ -336,6 +340,89 @@ class CloudDrop {
     this.updateDeviceNameDisplay();
     this.setupKeyboardDetection();
     this.setupVisualViewport();
+    this.setupLanguageSwitcher();
+  }
+
+  /**
+   * Setup language switcher event listeners
+   */
+  setupLanguageSwitcher() {
+    const languageBtn = document.getElementById('languageBtn');
+    const languageMenu = document.getElementById('languageMenu');
+    const languageCodeEl = document.getElementById('currentLanguageCode');
+    const languageFlagEl = document.getElementById('currentLanguageFlag');
+
+    if (!languageBtn || !languageMenu) return;
+
+    // Rectangular flag SVG content for button display
+    const flagSvgContent = {
+      zh: `<rect width="36" height="24" fill="#DE2910"/>
+           <polygon points="6,4 7.2,7.7 4,5.5 8,5.5 4.8,7.7" fill="#FFDE00"/>
+           <polygon points="12,2 12.4,3.2 11.2,2.4 12.8,2.4 11.6,3.2" fill="#FFDE00"/>
+           <polygon points="14,4 14.4,5.2 13.2,4.4 14.8,4.4 13.6,5.2" fill="#FFDE00"/>
+           <polygon points="14,7 14.4,8.2 13.2,7.4 14.8,7.4 13.6,8.2" fill="#FFDE00"/>
+           <polygon points="12,9 12.4,10.2 11.2,9.4 12.8,9.4 11.6,10.2" fill="#FFDE00"/>`,
+      en: `<rect width="36" height="24" fill="#B22234"/>
+           <rect y="1.85" width="36" height="1.85" fill="white"/>
+           <rect y="5.54" width="36" height="1.85" fill="white"/>
+           <rect y="9.23" width="36" height="1.85" fill="white"/>
+           <rect y="12.92" width="36" height="1.85" fill="white"/>
+           <rect y="16.62" width="36" height="1.85" fill="white"/>
+           <rect y="20.31" width="36" height="1.85" fill="white"/>
+           <rect width="14.4" height="13" fill="#3C3B6E"/>`,
+      ja: `<rect width="36" height="24" fill="white"/>
+           <circle cx="18" cy="12" r="7" fill="#BC002D"/>`
+    };
+
+    // Update current language code display
+    const updateLanguageDisplay = () => {
+      const currentLocale = i18n.getCurrentLocale();
+      if (languageCodeEl) {
+        languageCodeEl.textContent = currentLocale.toUpperCase();
+      }
+
+      // Update flag SVG in button
+      if (languageFlagEl && flagSvgContent[currentLocale]) {
+        languageFlagEl.innerHTML = flagSvgContent[currentLocale];
+      }
+
+      // Update active state in menu
+      languageMenu.querySelectorAll('.language-menu-item').forEach(item => {
+        const lang = item.getAttribute('data-lang');
+        item.classList.toggle('active', lang === currentLocale);
+      });
+    };
+
+    // Initialize display
+    updateLanguageDisplay();
+
+    // Language menu item clicks
+    languageMenu.querySelectorAll('.language-menu-item').forEach(item => {
+      item.addEventListener('click', async () => {
+        const lang = item.getAttribute('data-lang');
+        if (lang && lang !== i18n.getCurrentLocale()) {
+          await i18n.changeLocale(lang);
+          updateLanguageDisplay();
+        }
+      });
+    });
+
+    // Listen to locale change events
+    window.addEventListener('localeChanged', () => {
+      updateLanguageDisplay();
+      // 重新应用当前连接状态，确保状态文本使用新语言
+      ui.updateConnectionStatus(ui.getCurrentConnectionStatus());
+      // 更新房间安全徽章的 title
+      this.updateRoomSecurityBadge();
+      // 更新传输模式指示器（如果可见）
+      const transferModal = document.getElementById('transferModal');
+      if (transferModal && transferModal.classList.contains('active')) {
+        const indicator = document.getElementById('transferModeIndicator');
+        if (indicator) {
+          ui.updateTransferModeIndicator(indicator.dataset.mode);
+        }
+      }
+    });
   }
 
   // Generate room code is only used for creating shareable room codes
@@ -353,7 +440,7 @@ class CloudDrop {
         el.textContent = this.roomCode;
       } else {
         // Auto-assigned room, show placeholder until we get the room ID from server
-        el.textContent = '自动分配中...';
+        el.textContent = i18n.t('room.autoAssigning');
       }
     }
   }
@@ -412,7 +499,7 @@ class CloudDrop {
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
-      ui.updateConnectionStatus('connected', '已连接');
+      ui.updateConnectionStatus('connected');
 
       // Clear existing peers on reconnect to avoid duplicates
       this.peers.clear();
@@ -435,7 +522,7 @@ class CloudDrop {
       // Handle password error messages
       if (message.type === 'error') {
         if (message.error === 'PASSWORD_REQUIRED' || message.error === 'PASSWORD_INCORRECT') {
-          ui.showToast(message.message || '密码错误', 'error');
+          ui.showToast(i18n.t('room.passwordError'), 'error');
           this.clearRoomPassword();
           // WebSocket will be closed by server, onclose handler will show join modal
           return;
@@ -449,8 +536,8 @@ class CloudDrop {
       // Handle password authentication errors (custom close codes)
       if (event.code === 4001 || event.code === 4002) {
         // Password error - don't auto-reconnect
-        ui.updateConnectionStatus('disconnected', '密码错误');
-        ui.showToast(event.code === 4001 ? '此房间需要密码' : '房间密码错误', 'error');
+        ui.updateConnectionStatus('disconnected');
+        ui.showToast(event.code === 4001 ? i18n.t('room.passwordRequired') : i18n.t('room.passwordError'), 'error');
         this.clearRoomPassword();
         // Show join room modal again with password input
         if (this.roomCode) {
@@ -459,13 +546,13 @@ class CloudDrop {
         return;
       }
 
-      ui.updateConnectionStatus('disconnected', '已断开');
+      ui.updateConnectionStatus('disconnected');
       setTimeout(() => this.connectWebSocket(), 3000);
     };
 
     this.ws.onerror = (event) => {
       console.error('[WebSocket] Error:', event);
-      ui.updateConnectionStatus('disconnected', '已断开');
+      ui.updateConnectionStatus('disconnected');
     };
 
     this.webrtc = new WebRTCManager({
@@ -477,8 +564,8 @@ class CloudDrop {
 
       // Update modal title to show actual transfer (in case it was "waiting for confirmation")
       const modalTitle = document.getElementById('modalTitle');
-      if (modalTitle && modalTitle.textContent === '等待确认') {
-        modalTitle.textContent = '正在发送';
+      if (modalTitle && modalTitle.textContent === i18n.t('transfer.waitingConfirm')) {
+        modalTitle.textContent = i18n.t('transfer.sending');
       }
 
       ui.updateTransferProgress({
@@ -549,11 +636,12 @@ class CloudDrop {
 
       // Show toast notification
       const peer = this.peers.get(peerId);
+      const peerName = peer?.name || i18n.t('deviceTypes.unknown');
       if (messageData.type === 'image') {
-        ui.showToast(`${peer?.name || '未知设备'} 发送了一张图片`, 'info');
+        ui.showToast(i18n.t('chat.receivedImage', { name: peerName }), 'info');
       } else {
         const displayText = messageData.content || text;
-        ui.showToast(`${peer?.name || '未知设备'}: ${displayText.substring(0, 30)}${displayText.length > 30 ? '...' : ''}`, 'info');
+        ui.showToast(`${peerName}: ${displayText.substring(0, 30)}${displayText.length > 30 ? '...' : ''}`, 'info');
       }
     };
 
@@ -568,9 +656,9 @@ class CloudDrop {
       ui.hideModal('transferModal');
 
       if (reason === 'user') {
-        ui.showToast(`${peer?.name || '对方'} 取消了传输`, 'warning');
+        ui.showToast(i18n.t('transfer.transferCancelled'), 'warning');
       } else {
-        ui.showToast('传输已取消', 'info');
+        ui.showToast(i18n.t('transfer.transferCancelled'), 'info');
       }
 
       this.currentTransfer = null;
@@ -633,13 +721,13 @@ class CloudDrop {
 
           if (!hasExplicitRoom) {
             // Auto-assigned room - show a hint about sharing
-            ui.showToast(`已加入房间 ${this.roomCode}，请分享房间号给其他设备`, 'info', 5000);
+            ui.showToast(i18n.t('room.autoAssigned', { room: this.roomCode }), 'info', 5000);
           }
         }
         break;
       case 'peer-joined':
         this.addPeer(msg.data);
-        ui.showToast(`${msg.data.name} 已加入`, 'info');
+        ui.showToast(i18n.t('toast.peerJoined', { name: msg.data.name }), 'info');
         break;
       case 'peer-left':
         this.removePeer(msg.data.id);
@@ -687,14 +775,14 @@ class CloudDrop {
     // Check if this device is trusted - auto-accept if so
     if (peer && this.isDeviceTrusted(peer)) {
       console.log(`[App] Auto-accepting file from trusted device: ${peer.name}`);
-      ui.showToast(`自动接收来自 ${peer.name} 的文件: ${data.name}`, 'info');
+      ui.showToast(i18n.t('toast.autoAccepting', { name: peer.name, file: data.name }), 'info');
       this.acceptFileRequest();
       return;
     }
 
     // Update the receive modal with detailed info
     ui.updateReceiveModal({
-      senderName: peer?.name || '未知设备',
+      senderName: peer?.name || i18n.t('deviceTypes.unknown'),
       senderDeviceType: peer?.deviceType || 'desktop',
       senderBrowserInfo: peer?.browserInfo,
       fileName: data.name,
@@ -760,7 +848,7 @@ class CloudDrop {
     this.webrtc.respondToFileRequest(peerId, fileId, false);
 
     ui.hideModal('receiveModal');
-    ui.showToast('已拒绝文件接收', 'info');
+    ui.showToast(i18n.t('common.decline'), 'info');
 
     this.pendingFileRequest = null;
   }
@@ -799,12 +887,7 @@ class CloudDrop {
 
     // Hide modal and show feedback
     ui.hideModal('transferModal');
-
-    if (direction === 'send') {
-      ui.showToast(`已取消发送: ${fileName}`, 'info');
-    } else {
-      ui.showToast(`已取消接收: ${fileName}`, 'info');
-    }
+    ui.showToast(i18n.t('transfer.transferCancelled'), 'info');
 
     this.currentTransfer = null;
   }
@@ -827,7 +910,7 @@ class CloudDrop {
 
   removePeer(peerId) {
     const peer = this.peers.get(peerId);
-    if (peer) ui.showToast(`${peer.name} 已离开`, 'info');
+    if (peer) ui.showToast(i18n.t('toast.peerLeft', { name: peer.name }), 'info');
     this.peers.delete(peerId);
     ui.removePeerFromGrid(peerId, document.getElementById('peersGrid'));
     this.webrtc.closeConnection(peerId);
@@ -850,7 +933,7 @@ class CloudDrop {
       }));
     }
 
-    ui.showToast('设备名称已更新', 'success');
+    ui.showToast(i18n.t('deviceName.updated'), 'success');
   }
 
   handleNameChanged(peerId, newName) {
@@ -866,7 +949,7 @@ class CloudDrop {
         if (nameEl) nameEl.textContent = newName;
       }
 
-      ui.showToast(`${oldName} 改名为 ${newName}`, 'info');
+      ui.showToast(i18n.t('toast.peerRenamed', { oldName, newName }), 'info');
     }
   }
 
@@ -891,7 +974,7 @@ class CloudDrop {
     const peer = this.peers.get(peerId);
     for (const file of files) {
       // Show waiting for confirmation
-      this.showWaitingForConfirmation(peer?.name || '对方', file.name);
+      this.showWaitingForConfirmation(peer?.name || i18n.t('deviceTypes.unknown'), file.name);
 
       try {
         // sendFile now handles the request/confirm flow internally
@@ -900,17 +983,17 @@ class CloudDrop {
         await this.webrtc.sendFile(peerId, file);
 
         ui.hideModal('transferModal');
-        ui.showToast(`已发送: ${file.name}`, 'success');
+        ui.showToast(i18n.t('toast.fileSent', { name: file.name }), 'success');
       } catch (e) {
         ui.hideModal('transferModal');
-        if (e.message.includes('拒绝')) {
-          ui.showToast(`${peer?.name || '对方'} 拒绝了接收文件`, 'warning');
-        } else if (e.message.includes('超时')) {
-          ui.showToast('文件请求超时，对方未响应', 'warning');
-        } else if (e.message.includes('取消')) {
-          ui.showToast('传输已取消', 'info');
+        if (e.message.includes('拒绝') || e.message.includes('declined')) {
+          ui.showToast(i18n.t('toast.fileDeclined', { name: peer?.name || i18n.t('deviceTypes.unknown') }), 'warning');
+        } else if (e.message.includes('超时') || e.message.includes('timeout')) {
+          ui.showToast(i18n.t('toast.fileTimeout'), 'warning');
+        } else if (e.message.includes('取消') || e.message.includes('cancelled')) {
+          ui.showToast(i18n.t('transfer.transferCancelled'), 'info');
         } else {
-          ui.showToast(`发送失败: ${e.message}`, 'error');
+          ui.showToast(i18n.t('toast.sendFailed', { error: e.message }), 'error');
         }
       } finally {
         this.currentTransfer = null;
@@ -922,9 +1005,9 @@ class CloudDrop {
    * Show modal indicating waiting for recipient to accept
    */
   showWaitingForConfirmation(peerName, fileName) {
-    document.getElementById('modalTitle').textContent = '等待确认';
+    document.getElementById('modalTitle').textContent = i18n.t('transfer.waitingConfirm');
     document.getElementById('transferFileName').textContent = fileName;
-    document.getElementById('transferFileSize').textContent = `等待 ${peerName} 确认接收...`;
+    document.getElementById('transferFileSize').textContent = i18n.t('transfer.waitingFor', { name: peerName });
     document.getElementById('transferProgress').style.width = '0%';
     document.getElementById('transferPercent').textContent = '';
     document.getElementById('transferSpeed').textContent = '';
@@ -981,7 +1064,7 @@ class CloudDrop {
 
   joinRoom(code) {
     if (!code || !ROOM.CODE_PATTERN.test(code)) {
-      ui.showToast('房间号格式无效（需要6位字母数字）', 'error');
+      ui.showToast(i18n.t('room.invalidCode'), 'error');
       return;
     }
     // Navigate to new room
@@ -1015,10 +1098,10 @@ class CloudDrop {
     if (lockIcon) {
       if (this.isSecureRoom) {
         lockIcon.classList.add('locked');
-        lockIcon.title = '加密房间 - 已启用密码保护';
+        lockIcon.title = i18n.t('room.secureRoomActive');
       } else {
         lockIcon.classList.remove('locked');
-        lockIcon.title = '点击创建加密房间';
+        lockIcon.title = i18n.t('room.clickToCreateSecure');
       }
     }
   }
@@ -1042,7 +1125,7 @@ class CloudDrop {
       this.saveMessage(peerId, { type: 'sent', text, timestamp: Date.now() });
       return true;
     } catch (e) {
-      ui.showToast(`发送失败: ${e.message}`, 'error');
+      ui.showToast(i18n.t('toast.sendFailed', { error: e.message }), 'error');
       return false;
     }
   }
@@ -1071,7 +1154,7 @@ class CloudDrop {
       });
       return true;
     } catch (e) {
-      ui.showToast(`图片发送失败: ${e.message}`, 'error');
+      ui.showToast(i18n.t('chat.imageSendFailed', { error: e.message }), 'error');
       return false;
     }
   }
@@ -1109,10 +1192,10 @@ class CloudDrop {
           const dataUrl = canvas.toDataURL('image/jpeg', quality);
           resolve(dataUrl);
         };
-        img.onerror = () => reject(new Error('图片加载失败'));
+        img.onerror = () => reject(new Error(i18n.t('errors.imageLoadFailed')));
         img.src = e.target.result;
       };
-      reader.onerror = () => reject(new Error('文件读取失败'));
+      reader.onerror = () => reject(new Error(i18n.t('errors.fileReadFailed')));
       reader.readAsDataURL(file);
     });
   }
@@ -1132,7 +1215,7 @@ class CloudDrop {
       previewImg.src = dataUrl;
       preview.style.display = 'block';
     } catch (e) {
-      ui.showToast(`图片预览失败: ${e.message}`, 'error');
+      ui.showToast(i18n.t('chat.imagePreviewFailed', { error: e.message }), 'error');
     }
   }
 
@@ -1170,7 +1253,7 @@ class CloudDrop {
 
   openChatPanel(peer) {
     this.currentChatPeer = peer;
-    document.getElementById('chatTitle').textContent = `与 ${peer.name} 的消息`;
+    document.getElementById('chatTitle').textContent = i18n.t('chat.titleWithPeer', { name: peer.name });
     this.renderChatHistory(peer.id);
     document.getElementById('chatPanel').classList.add('active');
 
@@ -1199,9 +1282,9 @@ class CloudDrop {
       const emptyEl = document.createElement('div');
       emptyEl.className = 'chat-empty-state';
       emptyEl.innerHTML = `
-        <div class="chat-empty-icon">💬</div>
-        <p class="chat-empty-text">还没有消息</p>
-        <p class="chat-empty-hint">在下方输入框发送第一条消息或图片吧</p>
+        <div class="chat-empty-icon">${i18n.t('chat.emptyState.icon')}</div>
+        <p class="chat-empty-text">${i18n.t('chat.emptyState.text')}</p>
+        <p class="chat-empty-hint">${i18n.t('chat.emptyState.hint')}</p>
       `;
       container.appendChild(emptyEl);
       return;
@@ -1215,17 +1298,17 @@ class CloudDrop {
       msgEl.className = `chat-message ${statusClass}`;
 
       let statusText = this.formatTime(msg.timestamp);
-      if (msg.sending) statusText = '发送中...';
-      if (msg.failed) statusText = '发送失败 · 点击重试';
+      if (msg.sending) statusText = i18n.t('chat.sending');
+      if (msg.failed) statusText = i18n.t('chat.failed');
 
       // Check if it's an image message
       if (msg.messageType === 'image' && msg.imageData) {
         msgEl.innerHTML = `
           <div class="chat-bubble-wrapper">
             <div class="chat-bubble chat-bubble-image">
-              <img src="${msg.imageData}" alt="图片消息" loading="lazy">
+              <img src="${msg.imageData}" alt="${i18n.t('fileTypes.image')}" loading="lazy">
             </div>
-            <button class="chat-copy-btn" title="复制图片">
+            <button class="chat-copy-btn" title="${i18n.t('chat.copyImage')}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="13" height="13" rx="2"/>
                 <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
@@ -1252,7 +1335,7 @@ class CloudDrop {
         msgEl.innerHTML = `
           <div class="chat-bubble-wrapper">
             <div class="chat-bubble">${ui.escapeHtml(msg.text)}</div>
-            <button class="chat-copy-btn" title="复制消息">
+            <button class="chat-copy-btn" title="${i18n.t('chat.copyMessage')}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="13" height="13" rx="2"/>
                 <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
@@ -1311,11 +1394,11 @@ class CloudDrop {
     const diff = now - timestamp;
     const minutes = Math.floor(diff / 60000);
 
-    if (minutes < 1) return '刚刚';
-    if (minutes < 60) return `${minutes}分钟前`;
+    if (minutes < 1) return i18n.t('chat.justNow');
+    if (minutes < 60) return i18n.t('chat.minutesAgo', { minutes });
 
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}小时前`;
+    if (hours < 24) return i18n.t('chat.hoursAgo', { hours });
 
     const date = new Date(timestamp);
     return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -1327,13 +1410,13 @@ class CloudDrop {
       // Show success feedback
       btn.classList.add('copied');
       const originalTitle = btn.title;
-      btn.title = '已复制';
+      btn.title = i18n.t('common.copied');
       setTimeout(() => {
         btn.classList.remove('copied');
         btn.title = originalTitle;
       }, 1500);
     } catch (e) {
-      ui.showToast('复制失败', 'error');
+      ui.showToast(i18n.t('toast.copyFailed'), 'error');
     }
   }
 
@@ -1346,7 +1429,7 @@ class CloudDrop {
     try {
       // Check if browser supports clipboard write
       if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') {
-        ui.showToast('当前浏览器不支持复制图片，请右键图片自行复制', 'warning');
+        ui.showToast(i18n.t('chat.copyNotSupported'), 'warning');
         return;
       }
 
@@ -1363,15 +1446,15 @@ class CloudDrop {
       // Show success feedback
       btn.classList.add('copied');
       const originalTitle = btn.title;
-      btn.title = '已复制';
+      btn.title = i18n.t('common.copied');
       setTimeout(() => {
         btn.classList.remove('copied');
         btn.title = originalTitle;
       }, 1500);
-      ui.showToast('图片已复制到剪贴板', 'success');
+      ui.showToast(i18n.t('chat.imageCopied'), 'success');
     } catch (e) {
       console.error('Copy image failed:', e);
-      ui.showToast('复制失败，请右键图片自行复制', 'error');
+      ui.showToast(i18n.t('toast.copyFailed'), 'error');
     }
   }
 
@@ -1397,7 +1480,7 @@ class CloudDrop {
       msg.sending = false;
       msg.failed = true;
       this.renderChatHistory(peerId);
-      ui.showToast(`重试失败: ${e.message}`, 'error');
+      ui.showToast(i18n.t('toast.retryFailed', { error: e.message }), 'error');
     }
   }
 
@@ -1452,7 +1535,7 @@ class CloudDrop {
         const [peerId] = this.peers.keys();
         this.sendFiles(peerId, files);
       } else if (files.length && this.peers.size > 1) {
-        ui.showToast('请点击目标设备发送文件', 'warning');
+        ui.showToast(i18n.t('toast.selectDevice'), 'warning');
       }
     });
 
@@ -1499,7 +1582,7 @@ class CloudDrop {
       // Switch to new room
       this.switchRoom(newRoomCode);
       this.triggerHaptic('medium');
-      ui.showToast(`已切换到新房间: ${newRoomCode}`, 'success');
+      ui.showToast(i18n.t('room.switchedToRoom', { room: newRoomCode }), 'success');
     });
 
     // Join room button
@@ -1516,7 +1599,7 @@ class CloudDrop {
       const password = document.getElementById('joinRoomPassword').value;
 
       if (!code) {
-        ui.showToast('请输入房间号', 'error');
+        ui.showToast(i18n.t('room.placeholder'), 'error');
         return;
       }
 
@@ -1534,7 +1617,7 @@ class CloudDrop {
         if (requiresPassword) {
           // Show password input
           ui.showJoinRoomPasswordSection();
-          ui.showToast('此房间需要密码', 'warning');
+          ui.showToast(i18n.t('room.passwordRequired'), 'warning');
         } else {
           // Regular room join (no password needed, can use page refresh)
           this.joinRoom(code);
@@ -1557,7 +1640,7 @@ class CloudDrop {
           const requiresPassword = await this.checkRoomPassword(code);
           if (requiresPassword) {
             ui.showJoinRoomPasswordSection();
-            ui.showToast('此房间需要密码', 'warning');
+            ui.showToast(i18n.t('room.passwordRequired'), 'warning');
           } else {
             this.joinRoom(code);
           }
@@ -1576,7 +1659,7 @@ class CloudDrop {
     document.getElementById('roomLockIcon')?.addEventListener('click', () => {
       if (this.isSecureRoom) {
         // Already in a secure room, show info toast
-        ui.showToast('当前已在加密房间中', 'info');
+        ui.showToast(i18n.t('room.alreadySecure'), 'info');
         return;
       }
       // Generate a random room code for new secure room
@@ -1596,19 +1679,19 @@ class CloudDrop {
       const password = document.getElementById('secureRoomPassword').value;
 
       if (!roomCode) {
-        ui.showToast('请输入房间号', 'error');
+        ui.showToast(i18n.t('room.roomCodePlaceholder'), 'error');
         return;
       }
 
       if (!password || password.length < 6) {
-        ui.showToast('密码至少需要6位字符', 'error');
+        ui.showToast(i18n.t('room.passwordMinLength'), 'error');
         return;
       }
 
       const success = await this.createSecureRoom(roomCode, password);
       if (success) {
         ui.hideModal('createSecureRoomModal');
-        ui.showToast('加密房间创建成功', 'success');
+        ui.showToast(i18n.t('room.createSuccess'), 'success');
         // Switch to the new secure room without page refresh
         // This preserves the password in memory so creator doesn't need to re-enter
         this.switchRoom(roomCode);
@@ -1674,7 +1757,7 @@ class CloudDrop {
         if (success) {
           document.getElementById('textInput').value = '';
           ui.hideModal('textModal');
-          ui.showToast('消息已发送', 'success');
+          ui.showToast(i18n.t('toast.messageSent'), 'success');
         }
       }
     });
@@ -1685,7 +1768,7 @@ class CloudDrop {
     document.getElementById('copyText')?.addEventListener('click', () => {
       const text = document.getElementById('receivedText').textContent;
       navigator.clipboard.writeText(text);
-      ui.showToast('已复制到剪贴板', 'success');
+      ui.showToast(i18n.t('common.copied'), 'success');
     });
 
     // File download modal
@@ -1693,7 +1776,7 @@ class CloudDrop {
     document.getElementById('downloadFileClose')?.addEventListener('click', () => this.cleanupDownloadModal());
     document.getElementById('downloadFileBtn')?.addEventListener('click', () => {
       // Show success toast after user clicks download
-      ui.showToast(`已保存: ${this._pendingDownloadName}`, 'success');
+      ui.showToast(i18n.t('download.saved', { name: this._pendingDownloadName }), 'success');
       // Delay cleanup to allow download to start
       setTimeout(() => this.cleanupDownloadModal(), 500);
     });
@@ -1729,7 +1812,7 @@ class CloudDrop {
         tempMessage.failed = true;
         tempMessage.sending = false;
         this.renderChatHistory(this.currentChatPeer.id);
-        ui.showToast(`发送失败: ${e.message}`, 'error');
+        ui.showToast(i18n.t('toast.sendFailed', { error: e.message }), 'error');
       } finally {
         // Re-enable input
         input.disabled = false;
@@ -1852,10 +1935,10 @@ class CloudDrop {
       const success = await this.sendImageMessage(this.currentChatPeer.id, dataUrl);
       if (success) {
         this.renderChatHistory(this.currentChatPeer.id);
-        ui.showToast('图片已发送', 'success');
+        ui.showToast(i18n.t('chat.imageSent'), 'success');
       }
     } catch (e) {
-      ui.showToast(`图片发送失败: ${e.message}`, 'error');
+      ui.showToast(i18n.t('chat.imageSendFailed', { error: e.message }), 'error');
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -1919,7 +2002,7 @@ class CloudDrop {
       e.stopPropagation();
       if (this.roomCode) {
         navigator.clipboard.writeText(this.roomCode);
-        ui.showToast('房间号已复制', 'success');
+        ui.showToast(i18n.t('share.roomCodeCopied'), 'success');
         this.triggerHaptic('light');
       }
     });
@@ -1933,7 +2016,7 @@ class CloudDrop {
     // Copy room code
     copyCodeBtn?.addEventListener('click', () => {
       navigator.clipboard.writeText(this.roomCode);
-      ui.showToast('房间号已复制', 'success');
+      ui.showToast(i18n.t('share.roomCodeCopied'), 'success');
 
       // Visual feedback
       copyCodeBtn.classList.add('copied');
@@ -1945,7 +2028,7 @@ class CloudDrop {
       const url = new URL(location.href);
       url.searchParams.set('room', this.roomCode);
       navigator.clipboard.writeText(url.toString());
-      ui.showToast('链接已复制', 'success');
+      ui.showToast(i18n.t('share.linkCopied'), 'success');
 
       // Visual feedback
       copyLinkBtn.classList.add('copied');
@@ -2020,7 +2103,7 @@ class CloudDrop {
     document.getElementById('settingsCopyRoom')?.addEventListener('click', () => {
       navigator.clipboard.writeText(this.roomCode);
       this.triggerHaptic('light');
-      ui.showToast('房间号已复制', 'success');
+      ui.showToast(i18n.t('share.roomCodeCopied'), 'success');
     });
 
     // Mobile share panel
@@ -2033,7 +2116,7 @@ class CloudDrop {
       url.searchParams.set('room', this.roomCode);
       navigator.clipboard.writeText(url.toString());
       this.triggerHaptic('light');
-      ui.showToast('链接已复制', 'success');
+      ui.showToast(i18n.t('share.linkCopied'), 'success');
     });
 
     document.getElementById('shareNative')?.addEventListener('click', async () => {
@@ -2042,18 +2125,18 @@ class CloudDrop {
           const url = new URL(location.href);
           url.searchParams.set('room', this.roomCode);
           await navigator.share({
-            title: 'CloudDrop - 加入房间',
-            text: `加入房间 ${this.roomCode} 来互传文件`,
+            title: i18n.t('share.nativeShareTitle'),
+            text: i18n.t('share.nativeShareText', { room: this.roomCode }),
             url: url.toString()
           });
           this.triggerHaptic('medium');
         } catch (e) {
           if (e.name !== 'AbortError') {
-            ui.showToast('分享失败', 'error');
+            ui.showToast(i18n.t('toast.shareFailed'), 'error');
           }
         }
       } else {
-        ui.showToast('您的浏览器不支持分享功能', 'warning');
+        ui.showToast(i18n.t('toast.shareNotSupported'), 'warning');
       }
     });
 
@@ -2180,14 +2263,14 @@ class CloudDrop {
     const code = this.getQuickJoinCode();
 
     if (!code || code.length !== 6) {
-      ui.showToast('请输入完整的6位房间号', 'error');
+      ui.showToast(i18n.t('toast.invalidRoomCode'), 'error');
       const container = document.getElementById('quickJoinInputs');
       container?.querySelector('.code-digit')?.focus();
       return;
     }
 
     if (!ROOM.CODE_PATTERN.test(code)) {
-      ui.showToast('房间号格式无效（需要6位字母数字）', 'error');
+      ui.showToast(i18n.t('room.invalidCode'), 'error');
       return;
     }
 
@@ -2200,7 +2283,7 @@ class CloudDrop {
       document.getElementById('roomInput').value = code;
       ui.showJoinRoomPasswordSection();
       ui.showModal('joinRoomModal');
-      ui.showToast('此房间需要密码', 'warning');
+      ui.showToast(i18n.t('room.passwordRequired'), 'warning');
     } else {
       // Regular room, join directly
       this.joinRoom(code);
@@ -2210,7 +2293,7 @@ class CloudDrop {
   // Show quick actions panel
   showQuickActions() {
     if (this.peers.size === 0) {
-      ui.showToast('没有可用的设备', 'warning');
+      ui.showToast(i18n.t('toast.noDevices'), 'warning');
       return;
     }
 
@@ -2237,24 +2320,23 @@ class CloudDrop {
     const statusTextEl = document.getElementById('settingsStatusText');
     const mainStatusEl = document.getElementById('connectionStatus');
 
+    // 获取当前连接状态
+    const currentStatus = ui.getCurrentConnectionStatus();
+
     if (statusEl && mainStatusEl) {
       statusEl.className = 'settings-value';
       const dotEl = statusEl.querySelector('.status-dot');
       if (dotEl) {
-        dotEl.style.background = mainStatusEl.classList.contains('connected')
+        dotEl.style.background = currentStatus === 'connected'
           ? 'var(--status-success)'
-          : mainStatusEl.classList.contains('disconnected')
+          : currentStatus === 'disconnected'
             ? 'var(--status-error)'
             : 'var(--status-warning)';
       }
     }
 
     if (statusTextEl) {
-      statusTextEl.textContent = mainStatusEl?.classList.contains('connected')
-        ? '已连接'
-        : mainStatusEl?.classList.contains('disconnected')
-          ? '已断开'
-          : '连接中...';
+      statusTextEl.textContent = i18n.t(`common.${currentStatus}`);
     }
 
     // Render trusted devices list
@@ -2273,7 +2355,7 @@ class CloudDrop {
     const devices = this.getTrustedDevicesList();
 
     if (devices.length === 0) {
-      container.innerHTML = '<p class="trusted-empty">暂无信任的设备</p>';
+      container.innerHTML = `<p class="trusted-empty">${i18n.t('settings.noTrustedDevices')}</p>`;
       return;
     }
 
@@ -2291,10 +2373,10 @@ class CloudDrop {
           </div>
           <div class="trusted-device-details">
             <div class="trusted-device-name">${ui.escapeHtml(device.name)}</div>
-            <div class="trusted-device-meta">${device.browserInfo || '未知浏览器'}</div>
+            <div class="trusted-device-meta">${device.browserInfo || i18n.t('settings.unknownBrowser')}</div>
           </div>
         </div>
-        <button class="btn-untrust" title="取消信任" data-fingerprint="${device.fingerprint}">
+        <button class="btn-untrust" title="${i18n.t('settings.untrust')}" data-fingerprint="${device.fingerprint}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6L6 18M6 6l12 12"/>
           </svg>
@@ -2311,17 +2393,17 @@ class CloudDrop {
         if (!deviceInfo) return;
 
         const confirmed = await ui.showConfirmDialog({
-          title: '取消信任设备',
-          message: `确定要取消信任「<strong>${ui.escapeHtml(deviceInfo.name)}</strong>」吗？<br><br><span style="color: var(--text-muted)">取消后，该设备发送文件时需要您手动确认。</span>`,
-          confirmText: '取消信任',
-          cancelText: '保留信任',
+          title: i18n.t('settings.untrust'),
+          message: i18n.t('settings.confirmUntrust', { name: ui.escapeHtml(deviceInfo.name) }),
+          confirmText: i18n.t('settings.untrust'),
+          cancelText: i18n.t('settings.keepTrust'),
           type: 'warning'
         });
 
         if (confirmed) {
           const info = this.removeTrustedDevice(fingerprint);
           if (info) {
-            ui.showToast(`已取消信任: ${info.name}`, 'info');
+            ui.showToast(i18n.t('toast.untrusted', { name: info.name }), 'info');
           }
           this.renderTrustedDevicesList();
         }
@@ -2338,7 +2420,7 @@ class CloudDrop {
   // Select file to send (for mobile)
   selectFileToSend() {
     if (this.peers.size === 0) {
-      ui.showToast('没有可用的设备', 'warning');
+      ui.showToast(i18n.t('toast.noDevices'), 'warning');
       return;
     }
 
@@ -2352,24 +2434,24 @@ class CloudDrop {
       input.click();
     } else {
       // Multiple peers, show selection first
-      ui.showToast('请点击目标设备来发送文件', 'info');
+      ui.showToast(i18n.t('toast.selectDevice'), 'info');
     }
   }
 
   // Show text input for sending
   showTextInputForSend() {
     if (this.peers.size === 0) {
-      ui.showToast('没有可用的设备', 'warning');
+      ui.showToast(i18n.t('toast.noDevices'), 'warning');
       return;
     }
 
     if (this.peers.size === 1) {
-      const [peerId, peer] = [...this.peers.entries()][0];
+      const [, peer] = [...this.peers.entries()][0];
       this.selectedPeer = peer;
       document.getElementById('textInput').value = '';
       ui.showModal('textModal');
     } else {
-      ui.showToast('请点击目标设备上的消息按钮来发送文字', 'info');
+      ui.showToast(i18n.t('toast.selectDeviceForText'), 'info');
     }
   }
 

@@ -2,6 +2,12 @@
  * CloudDrop - UI Utilities Module
  */
 
+// Import i18n for dynamic content translation
+import { i18n } from './i18n.js';
+
+// Export i18n for use in other modules
+export { i18n };
+
 /**
  * Generate QR code and draw to canvas using qrcode-generator library
  * @param {HTMLCanvasElement} canvas - Canvas element
@@ -113,11 +119,24 @@ export function getDetailedDeviceInfo() {
   return `${browser} on ${os}`;
 }
 
-// Generate display name
+// Generate display name using i18n
 export function generateDisplayName() {
-  const adj = ['敏捷', '明亮', '酷炫', '迅速', '优雅', '飞速', '灵动', '沉稳'];
-  const noun = ['凤凰', '麒麟', '玄武', '青龙', '朱雀', '天马', '神鹿'];
-  return adj[Math.floor(Math.random() * adj.length)] + noun[Math.floor(Math.random() * noun.length)];
+  const adjectives = i18n.t('deviceNames.adjectives');
+  const nouns = i18n.t('deviceNames.nouns');
+
+  // Fallback if translations not loaded yet
+  const defaultAdj = ['敏捷', '明亮', '酷炫', '迅速', '优雅', '飞速', '灵动', '沉稳'];
+  const defaultNoun = ['凤凰', '麒麟', '玄武', '青龙', '朱雀', '天马', '神鹿', '白虎'];
+
+  const adj = Array.isArray(adjectives) ? adjectives : defaultAdj;
+  const noun = Array.isArray(nouns) ? nouns : defaultNoun;
+
+  const randomAdj = adj[Math.floor(Math.random() * adj.length)];
+  const randomNoun = noun[Math.floor(Math.random() * noun.length)];
+
+  // For English, add space between words
+  const locale = i18n.getCurrentLocale();
+  return locale === 'en' ? `${randomAdj} ${randomNoun}` : `${randomAdj}${randomNoun}`;
 }
 
 // Connection mode icons
@@ -146,22 +165,22 @@ export const fileTypeIcons = {
  */
 export function getFileTypeInfo(filename) {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
-  
+
   const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif'];
   const videoExts = ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv', 'wmv', 'm4v'];
   const audioExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma'];
   const documentExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf', 'odt'];
   const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'];
   const codeExts = ['js', 'ts', 'py', 'java', 'cpp', 'c', 'h', 'css', 'html', 'json', 'xml', 'yml', 'yaml', 'sh', 'rb', 'go', 'rs', 'swift', 'kt'];
-  
-  if (imageExts.includes(ext)) return { type: 'image', label: '图片' };
-  if (videoExts.includes(ext)) return { type: 'video', label: '视频' };
-  if (audioExts.includes(ext)) return { type: 'audio', label: '音频' };
-  if (documentExts.includes(ext)) return { type: 'document', label: '文档' };
-  if (archiveExts.includes(ext)) return { type: 'archive', label: '压缩包' };
-  if (codeExts.includes(ext)) return { type: 'code', label: '代码' };
-  
-  return { type: 'default', label: ext.toUpperCase() || '文件' };
+
+  if (imageExts.includes(ext)) return { type: 'image', label: i18n.t('fileTypes.image') };
+  if (videoExts.includes(ext)) return { type: 'video', label: i18n.t('fileTypes.video') };
+  if (audioExts.includes(ext)) return { type: 'audio', label: i18n.t('fileTypes.audio') };
+  if (documentExts.includes(ext)) return { type: 'document', label: i18n.t('fileTypes.document') };
+  if (archiveExts.includes(ext)) return { type: 'archive', label: i18n.t('fileTypes.archive') };
+  if (codeExts.includes(ext)) return { type: 'code', label: i18n.t('fileTypes.code') };
+
+  return { type: 'default', label: ext.toUpperCase() || i18n.t('fileTypes.file') };
 }
 
 /**
@@ -173,45 +192,45 @@ export function updateReceiveModal({ senderName, senderDeviceType, senderBrowser
   const senderNameEl = document.getElementById('senderName');
   const senderDeviceInfoEl = document.getElementById('senderDeviceInfo');
   const senderAvatarEl = document.getElementById('senderAvatar');
-  
-  if (senderNameEl) senderNameEl.textContent = senderName || '未知设备';
+
+  if (senderNameEl) senderNameEl.textContent = senderName || i18n.t('deviceTypes.unknown');
   if (senderDeviceInfoEl) senderDeviceInfoEl.textContent = senderBrowserInfo || getDeviceLabel(senderDeviceType);
-  
+
   if (senderAvatarEl) {
     senderAvatarEl.className = `sender-avatar ${senderDeviceType || 'desktop'}`;
     senderAvatarEl.innerHTML = deviceIcons[senderDeviceType] || deviceIcons.desktop;
   }
-  
+
   // Update file info
   const fileNameEl = document.getElementById('receiveFileName');
   const fileSizeEl = document.getElementById('receiveFileSize');
   const fileTypeEl = document.getElementById('receiveFileType');
   const fileIconEl = document.getElementById('fileIconLarge');
-  
-  if (fileNameEl) fileNameEl.textContent = fileName || '未知文件';
+
+  if (fileNameEl) fileNameEl.textContent = fileName || i18n.t('fileTypes.file');
   if (fileSizeEl) fileSizeEl.textContent = formatFileSize(fileSize || 0);
-  
+
   const fileTypeInfo = getFileTypeInfo(fileName || '');
   if (fileTypeEl) fileTypeEl.textContent = fileTypeInfo.label;
-  
+
   if (fileIconEl) {
     fileIconEl.className = `file-icon-large ${fileTypeInfo.type}`;
     fileIconEl.innerHTML = fileTypeIcons[fileTypeInfo.type] || fileTypeIcons.default;
   }
-  
+
   // Update transfer mode badge
   const modeBadge = document.getElementById('receiveModeBadge');
   if (modeBadge) {
     modeBadge.dataset.mode = mode || 'p2p';
     const modeIcon = modeBadge.querySelector('.mode-icon');
     const modeText = modeBadge.querySelector('.mode-text');
-    
+
     if (mode === 'relay') {
       if (modeIcon) modeIcon.innerHTML = connectionModeIcons.relay;
-      if (modeText) modeText.textContent = '中继传输';
+      if (modeText) modeText.textContent = i18n.t('transfer.modes.relay');
     } else {
       if (modeIcon) modeIcon.innerHTML = connectionModeIcons.p2p;
-      if (modeText) modeText.textContent = 'P2P 直连';
+      if (modeText) modeText.textContent = i18n.t('transfer.modes.p2p');
     }
   }
 }
@@ -220,8 +239,8 @@ export function updateReceiveModal({ senderName, senderDeviceType, senderBrowser
  * Get device label from device type
  */
 function getDeviceLabel(deviceType) {
-  const labels = { desktop: '桌面设备', mobile: '手机', tablet: '平板' };
-  return labels[deviceType] || '设备';
+  const key = `deviceTypes.${deviceType}`;
+  return i18n.t(key);
 }
 
 /**
@@ -248,17 +267,17 @@ export function createPeerCard(peer) {
   card.className = 'peer-card';
   card.dataset.peerId = peer.id;
   const icon = deviceIcons[peer.deviceType] || deviceIcons.desktop;
-  const labels = { desktop: '桌面设备', mobile: '手机', tablet: '平板' };
+  const deviceLabel = getDeviceLabel(peer.deviceType);
   card.innerHTML = `
     <div class="peer-avatar ${peer.deviceType}">${icon}</div>
-    <div class="connection-mode-badge" data-mode="none" title="等待连接">
+    <div class="connection-mode-badge" data-mode="none" title="${i18n.t('transfer.modes.waiting')}">
       <span class="mode-icon"></span>
       <span class="mode-text"></span>
     </div>
     <span class="peer-name">${escapeHtml(peer.name)}</span>
-    <span class="peer-device">${labels[peer.deviceType] || '设备'}</span>
+    <span class="peer-device">${deviceLabel}</span>
     <span class="peer-browser">${escapeHtml(peer.browserInfo || '')}</span>
-    <button class="peer-action-btn" data-peer-id="${peer.id}" data-action="message" title="发送文字消息">
+    <button class="peer-action-btn" data-peer-id="${peer.id}" data-action="message" title="${i18n.t('chat.placeholder')}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
     </button>
   `;
@@ -282,19 +301,19 @@ export function updatePeerConnectionMode(peerId, mode) {
   const modeConfig = {
     p2p: {
       icon: connectionModeIcons.p2p,
-      title: 'P2P 直连 - 点对点直连传输，速度快，隐私性最好'
+      title: i18n.t('transfer.modes.p2pTooltip')
     },
     relay: {
       icon: connectionModeIcons.relay,
-      title: '中继传输 - 通过服务器中继，连接更稳定可靠'
+      title: i18n.t('transfer.modes.relayTooltip')
     },
     connecting: {
       icon: connectionModeIcons.connecting,
-      title: '正在建立连接...'
+      title: i18n.t('common.connecting')
     },
     none: {
       icon: '',
-      title: '等待连接'
+      title: i18n.t('transfer.modes.waiting')
     }
   };
   
@@ -509,27 +528,27 @@ export function updateTransferModeIndicator(mode) {
 
   if (mode === 'p2p') {
     modeIcon.innerHTML = connectionModeIcons.p2p;
-    modeText.textContent = 'P2P 直连';
-    indicator.title = '点对点直连传输，速度快，隐私性最好';
+    modeText.textContent = i18n.t('transfer.modes.p2p');
+    indicator.title = i18n.t('transfer.modes.p2pTooltip');
   } else if (mode === 'waiting') {
     modeIcon.innerHTML = connectionModeIcons.waiting;
-    modeText.textContent = '等待对方确认';
-    indicator.title = '等待对方确认接收文件';
+    modeText.textContent = i18n.t('transfer.modes.waiting');
+    indicator.title = i18n.t('transfer.modes.waiting');
   } else {
     modeIcon.innerHTML = connectionModeIcons.relay;
-    modeText.textContent = '中继传输';
-    indicator.title = '通过服务器中继，更稳定可靠';
+    modeText.textContent = i18n.t('transfer.modes.relay');
+    indicator.title = i18n.t('transfer.modes.relayTooltip');
   }
 }
 
 export function showSendingModal(fileName, fileSize, mode = 'p2p') {
-  document.getElementById('modalTitle').textContent = '正在发送';
+  document.getElementById('modalTitle').textContent = i18n.t('transfer.sending');
   updateTransferProgress({ fileName, fileSize, percent: 0, speed: 0, mode });
   showModal('transferModal');
 }
 
 export function showReceivingModal(fileName, fileSize, mode = 'p2p') {
-  document.getElementById('modalTitle').textContent = '正在接收';
+  document.getElementById('modalTitle').textContent = i18n.t('transfer.receiving');
   updateTransferProgress({ fileName, fileSize, percent: 0, speed: 0, mode });
   showModal('transferModal');
 }
@@ -542,7 +561,7 @@ export function showToast(message, type = 'info', duration = 3000) {
     success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
     error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
     warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>'
   };
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
@@ -552,20 +571,27 @@ export function showToast(message, type = 'info', duration = 3000) {
 }
 
 // Connection status
-export function updateConnectionStatus(status, text) {
+// 存储当前连接状态，用于语言切换时重新应用
+let currentConnectionStatus = 'connecting';
+
+export function updateConnectionStatus(status) {
+  currentConnectionStatus = status;
   const el = document.getElementById('connectionStatus');
   if (el) {
     el.className = `connection-status ${status}`;
-    el.querySelector('.status-text').textContent = text;
-    
+
+    // 使用 i18n 获取翻译文本
+    const statusTextKey = `common.${status}`;
+    el.querySelector('.status-text').textContent = i18n.t(statusTextKey);
+
     // 设置 hover 提示，说明是否已连接到主服务器
-    const tooltips = {
-      connected: '已连接到主服务器',
-      disconnected: '与主服务器断开连接',
-      connecting: '正在连接主服务器...'
-    };
-    el.title = tooltips[status] || '主服务器连接状态';
+    el.title = i18n.t(`header.connectionStatus.${status}`);
   }
+}
+
+// 获取当前连接状态（用于语言切换时重新应用）
+export function getCurrentConnectionStatus() {
+  return currentConnectionStatus;
 }
 
 // Drop zone
@@ -622,7 +648,7 @@ export function showPersistentToast(id, message, type = 'info') {
     success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
     error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
     warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>',
     loading: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/></svg>'
   };
   
@@ -642,7 +668,7 @@ export function updatePersistentToast(id, message, type) {
     success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
     error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
     warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>',
     loading: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/></svg>'
   };
   
