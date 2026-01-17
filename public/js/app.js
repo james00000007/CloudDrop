@@ -2151,7 +2151,7 @@ class CloudDrop {
 
     document.getElementById('navRoom')?.addEventListener('click', () => {
       this.triggerHaptic('light');
-      this.showMobileShareModal();
+      ui.showModal('joinRoomModal');
     });
 
     document.getElementById('navSend')?.addEventListener('click', () => {
@@ -2514,6 +2514,15 @@ class CloudDrop {
     if (shareRoomCodeEl) {
       shareRoomCodeEl.textContent = this.roomCode;
     }
+
+    // Generate QR code for mobile share modal
+    const canvas = document.getElementById('mobileShareQRCode');
+    if (canvas && this.roomCode) {
+      const url = new URL(location.href);
+      url.searchParams.set('room', this.roomCode);
+      ui.generateQRCode(canvas, url.toString(), { size: 160 });
+    }
+
     ui.showModal('mobileShareModal');
   }
 
