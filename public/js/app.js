@@ -365,6 +365,28 @@ class CloudDrop {
            <polygon points="14,4 14.4,5.2 13.2,4.4 14.8,4.4 13.6,5.2" fill="#FFDE00"/>
            <polygon points="14,7 14.4,8.2 13.2,7.4 14.8,7.4 13.6,8.2" fill="#FFDE00"/>
            <polygon points="12,9 12.4,10.2 11.2,9.4 12.8,9.4 11.6,10.2" fill="#FFDE00"/>`,
+      'zh-TW': `<rect width="36" height="24" fill="#DE2110"/>
+           <g transform="translate(18,12) scale(0.9)">
+             <g fill="white">
+               <ellipse cx="0" cy="-6" rx="2.2" ry="5" transform="rotate(0)"/>
+               <ellipse cx="0" cy="-6" rx="2.2" ry="5" transform="rotate(72)"/>
+               <ellipse cx="0" cy="-6" rx="2.2" ry="5" transform="rotate(144)"/>
+               <ellipse cx="0" cy="-6" rx="2.2" ry="5" transform="rotate(216)"/>
+               <ellipse cx="0" cy="-6" rx="2.2" ry="5" transform="rotate(288)"/>
+             </g>
+             <g fill="#DE2110">
+               <line x1="0" y1="0" x2="0" y2="-7" stroke="#DE2110" stroke-width="0.6" transform="rotate(0)"/>
+               <line x1="0" y1="0" x2="0" y2="-7" stroke="#DE2110" stroke-width="0.6" transform="rotate(72)"/>
+               <line x1="0" y1="0" x2="0" y2="-7" stroke="#DE2110" stroke-width="0.6" transform="rotate(144)"/>
+               <line x1="0" y1="0" x2="0" y2="-7" stroke="#DE2110" stroke-width="0.6" transform="rotate(216)"/>
+               <line x1="0" y1="0" x2="0" y2="-7" stroke="#DE2110" stroke-width="0.6" transform="rotate(288)"/>
+               <circle cx="0" cy="-3" r="0.5" transform="rotate(36)"/>
+               <circle cx="0" cy="-3" r="0.5" transform="rotate(108)"/>
+               <circle cx="0" cy="-3" r="0.5" transform="rotate(180)"/>
+               <circle cx="0" cy="-3" r="0.5" transform="rotate(252)"/>
+               <circle cx="0" cy="-3" r="0.5" transform="rotate(324)"/>
+             </g>
+           </g>`,
       en: `<rect width="36" height="24" fill="#B22234"/>
            <rect y="1.85" width="36" height="1.85" fill="white"/>
            <rect y="5.54" width="36" height="1.85" fill="white"/>
@@ -374,7 +396,48 @@ class CloudDrop {
            <rect y="20.31" width="36" height="1.85" fill="white"/>
            <rect width="14.4" height="13" fill="#3C3B6E"/>`,
       ja: `<rect width="36" height="24" fill="white"/>
-           <circle cx="18" cy="12" r="7" fill="#BC002D"/>`
+           <circle cx="18" cy="12" r="7" fill="#BC002D"/>`,
+      ko: `<rect width="36" height="24" fill="white"/>
+           <g transform="translate(18,12)">
+             <circle cx="0" cy="0" r="6" fill="#C60C30"/>
+             <path d="M0,-6 A6,6 0 0,1 0,6 A3,3 0 0,1 0,0 A3,3 0 0,0 0,-6" fill="#003478"/>
+             <circle cx="0" cy="-3" r="3" fill="#C60C30"/>
+             <circle cx="0" cy="3" r="3" fill="#003478"/>
+           </g>
+           <g stroke="#000" stroke-width="1.2">
+             <g transform="translate(5.5,5) rotate(-15)">
+               <line x1="-3.5" y1="-2" x2="3.5" y2="-2"/>
+               <line x1="-3.5" y1="0" x2="3.5" y2="0"/>
+               <line x1="-3.5" y1="2" x2="3.5" y2="2"/>
+             </g>
+             <g transform="translate(30.5,19) rotate(-15)">
+               <line x1="-3.5" y1="-2" x2="-0.5" y2="-2"/><line x1="0.5" y1="-2" x2="3.5" y2="-2"/>
+               <line x1="-3.5" y1="0" x2="-0.5" y2="0"/><line x1="0.5" y1="0" x2="3.5" y2="0"/>
+               <line x1="-3.5" y1="2" x2="-0.5" y2="2"/><line x1="0.5" y1="2" x2="3.5" y2="2"/>
+             </g>
+             <g transform="translate(30.5,5) rotate(15)">
+               <line x1="-3.5" y1="-2" x2="-0.5" y2="-2"/><line x1="0.5" y1="-2" x2="3.5" y2="-2"/>
+               <line x1="-3.5" y1="0" x2="3.5" y2="0"/>
+               <line x1="-3.5" y1="2" x2="-0.5" y2="2"/><line x1="0.5" y1="2" x2="3.5" y2="2"/>
+             </g>
+             <g transform="translate(5.5,19) rotate(15)">
+               <line x1="-3.5" y1="-2" x2="3.5" y2="-2"/>
+               <line x1="-3.5" y1="0" x2="-0.5" y2="0"/><line x1="0.5" y1="0" x2="3.5" y2="0"/>
+               <line x1="-3.5" y1="2" x2="3.5" y2="2"/>
+             </g>
+           </g>`,
+      es: `<rect width="36" height="6" fill="#AA151B"/>
+           <rect y="6" width="36" height="12" fill="#F1BF00"/>
+           <rect y="18" width="36" height="6" fill="#AA151B"/>`,
+      fr: `<rect width="12" height="24" fill="#002395"/>
+           <rect x="12" width="12" height="24" fill="white"/>
+           <rect x="24" width="12" height="24" fill="#ED2939"/>`,
+      de: `<rect width="36" height="8" fill="#000"/>
+           <rect y="8" width="36" height="8" fill="#DD0000"/>
+           <rect y="16" width="36" height="8" fill="#FFCE00"/>`,
+      ar: `<rect width="36" height="8" fill="#006C35"/>
+           <rect y="8" width="36" height="8" fill="white"/>
+           <rect y="16" width="36" height="8" fill="#000"/>`
     };
 
     // Update current language code display

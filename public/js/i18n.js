@@ -8,7 +8,7 @@ export class I18n {
     this.locale = 'zh'; // Default locale
     this.fallbackLocale = 'zh';
     this.translations = {};
-    this.supportedLocales = ['en', 'zh', 'ja'];
+    this.supportedLocales = ['en', 'zh', 'zh-TW', 'ja', 'ko', 'es', 'fr', 'de', 'ar'];
   }
 
   /**
@@ -20,7 +20,7 @@ export class I18n {
    */
   async init(options = {}) {
     this.fallbackLocale = options.fallbackLocale || 'zh';
-    this.supportedLocales = options.supportedLocales || ['en', 'zh', 'ja'];
+    this.supportedLocales = options.supportedLocales || this.supportedLocales;
 
     // Detect locale: URL param > localStorage > browser language > default
     this.locale = this.detectLocale(options.defaultLocale);
@@ -59,8 +59,20 @@ export class I18n {
     const langMap = {
       'en': 'en',
       'zh': 'zh',
-      'ja': 'ja'
+      'ja': 'ja',
+      'ko': 'ko',
+      'es': 'es',
+      'fr': 'fr',
+      'de': 'de',
+      'ar': 'ar'
     };
+
+    // Special handling for zh-TW, zh-HK (Traditional Chinese)
+    if (browserLang.toLowerCase().startsWith('zh-tw') ||
+        browserLang.toLowerCase().startsWith('zh-hk') ||
+        browserLang.toLowerCase().startsWith('zh-hant')) {
+      return 'zh-TW';
+    }
 
     if (langMap[langCode] && this.supportedLocales.includes(langMap[langCode])) {
       return langMap[langCode];
@@ -147,17 +159,28 @@ export class I18n {
    * @returns {string} Appropriate plural form
    */
   getPluralForm(pluralObj, count, locale) {
-    // English plural rules: one (1), other (0, 2+)
-    // Chinese: other (all numbers, no plural distinction)
-    // Japanese: other (all numbers, no plural distinction)
+    // Plural rules for different locales
+    // English/German/Spanish/French: one (1), other (0, 2+)
+    // Chinese/Japanese/Korean: other (all numbers, no plural distinction)
+    // Arabic: zero (0), one (1), two (2), few (3-10), many (11-99), other (100+)
 
     const pluralRules = {
-      'en': (n) => {
+      'en': (n) => n === 1 ? 'one' : 'other',
+      'de': (n) => n === 1 ? 'one' : 'other',
+      'es': (n) => n === 1 ? 'one' : 'other',
+      'fr': (n) => n === 0 || n === 1 ? 'one' : 'other',
+      'zh': () => 'other',
+      'zh-TW': () => 'other',
+      'ja': () => 'other',
+      'ko': () => 'other',
+      'ar': (n) => {
+        if (n === 0) return 'zero';
         if (n === 1) return 'one';
+        if (n === 2) return 'two';
+        if (n >= 3 && n <= 10) return 'few';
+        if (n >= 11 && n <= 99) return 'many';
         return 'other';
-      },
-      'zh': () => 'other', // Chinese has no plural forms
-      'ja': () => 'other'  // Japanese has no plural forms
+      }
     };
 
     const getForm = pluralRules[locale] || pluralRules['en'];
@@ -226,8 +249,21 @@ export class I18n {
     // Update HTML lang attribute
     document.documentElement.lang = this.getLanguageTag(this.locale);
 
+    // Update HTML dir attribute for RTL languages
+    document.documentElement.dir = this.isRTL(this.locale) ? 'rtl' : 'ltr';
+
     // Update SEO meta tags
     this.updateSEO();
+  }
+
+  /**
+   * Check if a locale is RTL (right-to-left)
+   * @param {string} locale - Locale code
+   * @returns {boolean} True if RTL
+   */
+  isRTL(locale) {
+    const rtlLocales = ['ar', 'he', 'fa', 'ur'];
+    return rtlLocales.includes(locale);
   }
 
   /**
@@ -306,7 +342,13 @@ export class I18n {
     const ogLocales = {
       'en': 'en_US',
       'zh': 'zh_CN',
-      'ja': 'ja_JP'
+      'zh-TW': 'zh_TW',
+      'ja': 'ja_JP',
+      'ko': 'ko_KR',
+      'es': 'es_ES',
+      'fr': 'fr_FR',
+      'de': 'de_DE',
+      'ar': 'ar_SA'
     };
     return ogLocales[locale] || 'en_US';
   }
@@ -362,7 +404,13 @@ export class I18n {
     const tags = {
       'en': 'en-US',
       'zh': 'zh-CN',
-      'ja': 'ja-JP'
+      'zh-TW': 'zh-TW',
+      'ja': 'ja-JP',
+      'ko': 'ko-KR',
+      'es': 'es-ES',
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'ar': 'ar-SA'
     };
     return tags[locale] || locale;
   }
@@ -422,7 +470,13 @@ export class I18n {
     const names = {
       'en': 'English',
       'zh': '简体中文',
-      'ja': '日本語'
+      'zh-TW': '繁體中文',
+      'ja': '日本語',
+      'ko': '한국어',
+      'es': 'Español',
+      'fr': 'Français',
+      'de': 'Deutsch',
+      'ar': 'العربية'
     };
     return names[locale] || locale;
   }
