@@ -1064,9 +1064,11 @@
             <div class="settings-slider-row" id="relayTimeoutRow">
               <label class="settings-sublabel" data-i18n="settings.relayFallback.timeout">降级超时</label>
               <div class="settings-slider-container">
-                <input type="range" class="settings-slider" id="settingsRelayTimeout" min="3" max="15" value="5"
-                  step="1">
-                <span class="settings-slider-value" id="relayTimeoutValue">5s</span>
+                <input type="range" class="settings-slider" id="settingsRelayTimeoutSlider" min="1" max="60" value="5">
+                <div class="settings-input-group">
+                  <input type="number" class="settings-number-input" id="settingsRelayTimeout" min="1" max="60" value="5">
+                  <span class="settings-input-unit">s</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1123,9 +1125,11 @@
           <div class="settings-popover-slider-row" id="popoverRelayTimeoutRow">
             <span class="settings-popover-sublabel" data-i18n="settings.relayFallback.timeout">降级超时</span>
             <div class="settings-popover-slider-container">
-              <input type="range" class="settings-popover-slider" id="popoverRelayTimeout" min="3" max="15" value="5"
-                step="1">
-              <span class="settings-popover-slider-value" id="popoverRelayTimeoutValue">5s</span>
+              <input type="range" class="settings-popover-slider" id="popoverRelayTimeoutSlider" min="1" max="60" value="5">
+              <div class="settings-popover-input-group">
+                <input type="number" class="settings-popover-number-input" id="popoverRelayTimeout" min="1" max="60" value="5">
+                <span class="settings-popover-input-unit">s</span>
+              </div>
             </div>
           </div>
         </div>

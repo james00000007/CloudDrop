@@ -3282,12 +3282,46 @@ body::before {
   cursor: pointer;
 }
 
-.settings-popover-slider-value {
-  min-width: 30px;
+.settings-popover-input-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.settings-popover-number-input {
+  width: 44px;
+  padding: 4px 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  text-align: center;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.settings-popover-number-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+
+.settings-popover-number-input::-webkit-inner-spin-button,
+.settings-popover-number-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.settings-popover-number-input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+.settings-popover-input-unit {
   font-size: var(--font-size-xs);
   font-weight: 600;
-  color: var(--accent-primary);
-  text-align: right;
+  color: var(--text-muted);
 }
 
 .settings-popover-section-header {
@@ -3398,7 +3432,7 @@ body::before {
 }
 
 .settings-sublabel {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -3445,12 +3479,46 @@ body::before {
   cursor: pointer;
 }
 
-.settings-slider-value {
-  min-width: 36px;
+.settings-input-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.settings-number-input {
+  width: 52px;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  text-align: center;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.settings-number-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+
+.settings-number-input::-webkit-inner-spin-button,
+.settings-number-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.settings-number-input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+.settings-input-unit {
   font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--accent-primary);
-  text-align: right;
+  color: var(--text-muted);
 }
 
 /* Desktop only class */

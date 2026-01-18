@@ -81,6 +81,15 @@ class CloudDrop {
   }
 
   /**
+   * 限制超时值在有效范围内
+   * @param {number} value - 输入值
+   * @returns {number} - 限制后的值（1-60秒）
+   */
+  clampTimeout(value) {
+    return Math.max(1, Math.min(60, value));
+  }
+
+  /**
    * 将设置应用到 WebRTC 模块
    */
   applySettingToWebRTC(key, value) {
@@ -2777,34 +2786,62 @@ class CloudDrop {
       if (relayFallbackToggle) relayFallbackToggle.checked = e.target.checked;
     });
 
-    // 降级超时滑块 - 移动端
-    const relayTimeoutSlider = document.getElementById('settingsRelayTimeout');
-    const relayTimeoutValue = document.getElementById('relayTimeoutValue');
+    // 降级超时控件 - 移动端
+    const relayTimeoutSlider = document.getElementById('settingsRelayTimeoutSlider');
+    const relayTimeoutInput = document.getElementById('settingsRelayTimeout');
+
+    // 滑块拖动时同步输入框
     relayTimeoutSlider?.addEventListener('input', (e) => {
       const value = parseInt(e.target.value);
-      if (relayTimeoutValue) relayTimeoutValue.textContent = `${value}s`;
+      if (relayTimeoutInput) relayTimeoutInput.value = value;
       // 同步到桌面端
-      const popoverSlider = document.getElementById('popoverRelayTimeout');
-      const popoverValue = document.getElementById('popoverRelayTimeoutValue');
+      const popoverSlider = document.getElementById('popoverRelayTimeoutSlider');
+      const popoverInput = document.getElementById('popoverRelayTimeout');
       if (popoverSlider) popoverSlider.value = value;
-      if (popoverValue) popoverValue.textContent = `${value}s`;
+      if (popoverInput) popoverInput.value = value;
     });
     relayTimeoutSlider?.addEventListener('change', (e) => {
       this.updateSetting('relayFallbackTimeout', parseInt(e.target.value));
     });
 
-    // 降级超时滑块 - 桌面端
-    const popoverRelayTimeoutSlider = document.getElementById('popoverRelayTimeout');
-    const popoverRelayTimeoutValue = document.getElementById('popoverRelayTimeoutValue');
+    // 输入框修改时同步滑块
+    relayTimeoutInput?.addEventListener('change', (e) => {
+      const value = this.clampTimeout(parseInt(e.target.value) || 5);
+      e.target.value = value;
+      if (relayTimeoutSlider) relayTimeoutSlider.value = value;
+      this.updateSetting('relayFallbackTimeout', value);
+      // 同步到桌面端
+      const popoverSlider = document.getElementById('popoverRelayTimeoutSlider');
+      const popoverInput = document.getElementById('popoverRelayTimeout');
+      if (popoverSlider) popoverSlider.value = value;
+      if (popoverInput) popoverInput.value = value;
+    });
+
+    // 降级超时控件 - 桌面端
+    const popoverRelayTimeoutSlider = document.getElementById('popoverRelayTimeoutSlider');
+    const popoverRelayTimeoutInput = document.getElementById('popoverRelayTimeout');
+
+    // 滑块拖动时同步输入框
     popoverRelayTimeoutSlider?.addEventListener('input', (e) => {
       const value = parseInt(e.target.value);
-      if (popoverRelayTimeoutValue) popoverRelayTimeoutValue.textContent = `${value}s`;
+      if (popoverRelayTimeoutInput) popoverRelayTimeoutInput.value = value;
       // 同步到移动端
       if (relayTimeoutSlider) relayTimeoutSlider.value = value;
-      if (relayTimeoutValue) relayTimeoutValue.textContent = `${value}s`;
+      if (relayTimeoutInput) relayTimeoutInput.value = value;
     });
     popoverRelayTimeoutSlider?.addEventListener('change', (e) => {
       this.updateSetting('relayFallbackTimeout', parseInt(e.target.value));
+    });
+
+    // 输入框修改时同步滑块
+    popoverRelayTimeoutInput?.addEventListener('change', (e) => {
+      const value = this.clampTimeout(parseInt(e.target.value) || 5);
+      e.target.value = value;
+      if (popoverRelayTimeoutSlider) popoverRelayTimeoutSlider.value = value;
+      this.updateSetting('relayFallbackTimeout', value);
+      // 同步到移动端
+      if (relayTimeoutSlider) relayTimeoutSlider.value = value;
+      if (relayTimeoutInput) relayTimeoutInput.value = value;
     });
 
     // 连接预热开关 - 移动端
@@ -2830,21 +2867,19 @@ class CloudDrop {
    * @param {'popover'|'modal'} target - 目标 UI
    */
   syncSettingsToUI(target) {
-    const prefix = target === 'popover' ? 'popover' : 'settings';
-
     // 中继降级开关
     const relayToggle = document.getElementById(target === 'popover' ? 'popoverRelayFallback' : 'settingsRelayFallback');
     if (relayToggle) relayToggle.checked = this.settings.allowRelayFallback;
 
-    // 超时滑块行的显示/隐藏
+    // 超时控件行的显示/隐藏
     const timeoutRow = document.getElementById(target === 'popover' ? 'popoverRelayTimeoutRow' : 'relayTimeoutRow');
     if (timeoutRow) timeoutRow.style.display = this.settings.allowRelayFallback ? 'flex' : 'none';
 
-    // 超时滑块值
-    const timeoutSlider = document.getElementById(target === 'popover' ? 'popoverRelayTimeout' : 'settingsRelayTimeout');
-    const timeoutValue = document.getElementById(target === 'popover' ? 'popoverRelayTimeoutValue' : 'relayTimeoutValue');
+    // 超时滑块和输入框值
+    const timeoutSlider = document.getElementById(target === 'popover' ? 'popoverRelayTimeoutSlider' : 'settingsRelayTimeoutSlider');
+    const timeoutInput = document.getElementById(target === 'popover' ? 'popoverRelayTimeout' : 'settingsRelayTimeout');
     if (timeoutSlider) timeoutSlider.value = this.settings.relayFallbackTimeout;
-    if (timeoutValue) timeoutValue.textContent = `${this.settings.relayFallbackTimeout}s`;
+    if (timeoutInput) timeoutInput.value = this.settings.relayFallbackTimeout;
 
     // 预热开关
     const prewarmToggle = document.getElementById(target === 'popover' ? 'popoverPrewarm' : 'settingsPrewarm');
