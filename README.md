@@ -179,6 +179,10 @@ CloudDrop implements multiple layers of security:
 4. **Room Passwords** - Optional password protection with PBKDF2 derivation
 5. **Zero Knowledge** - Server never sees file contents or encryption keys
 
+## 🌟 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=DeH40/CloudDrop&type=date&legend=top-left)](https://www.star-history.com/#DeH40/CloudDrop&type=date&legend=top-left)
+
 ## 📄 License
 
 [MIT](./LICENSE) © DeH40
