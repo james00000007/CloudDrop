@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://cloudrop.cc">🌐 Live Demo</a> •
   <a href="./README.zh-CN.md">🇨🇳 中文文档</a> •
   <a href="#-features">Features</a> •
   <a href="#-one-click-deploy">Deploy</a> •
@@ -76,6 +77,8 @@
 Deploy your own CloudDrop instance to Cloudflare Workers:
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/DeH40/cloudDrop)
+
+**Try it first:** Visit [cloudrop.cc](https://cloudrop.cc) to see CloudDrop in action.
 
 ## 🛠️ Development
 
