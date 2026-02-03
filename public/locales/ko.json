@@ -249,6 +249,13 @@
     "deviceName": "기기 이름",
     "currentRoom": "현재 방",
     "connectionStatus": "연결 상태",
+    "theme": {
+      "title": "테마",
+      "description": "인터페이스 테마 선택",
+      "system": "시스템",
+      "light": "라이트",
+      "dark": "다크"
+    },
     "trustedDevices": "신뢰하는 기기",
     "trustedDevicesHint": "신뢰하는 기기의 파일은 자동으로 수락됩니다",
     "noTrustedDevices": "신뢰하는 기기가 없습니다",

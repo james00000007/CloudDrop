@@ -255,6 +255,13 @@
     "deviceName": "اسم الجهاز",
     "currentRoom": "الغرفة الحالية",
     "connectionStatus": "حالة الاتصال",
+    "theme": {
+      "title": "المظهر",
+      "description": "اختر مظهر الواجهة",
+      "system": "النظام",
+      "light": "فاتح",
+      "dark": "داكن"
+    },
     "trustedDevices": "الأجهزة الموثوقة",
     "trustedDevicesHint": "سيتم قبول الملفات من الأجهزة الموثوقة تلقائياً",
     "noTrustedDevices": "لا توجد أجهزة موثوقة",

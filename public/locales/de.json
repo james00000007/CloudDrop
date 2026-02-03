@@ -251,6 +251,13 @@
     "deviceName": "Gerätename",
     "currentRoom": "Aktueller Raum",
     "connectionStatus": "Verbindungsstatus",
+    "theme": {
+      "title": "Thema",
+      "description": "Wähle das Erscheinungsbild",
+      "system": "System",
+      "light": "Hell",
+      "dark": "Dunkel"
+    },
     "trustedDevices": "Vertrauenswürdige Geräte",
     "trustedDevicesHint": "Dateien von vertrauenswürdigen Geräten werden automatisch akzeptiert",
     "noTrustedDevices": "Keine vertrauenswürdigen Geräte",

@@ -251,6 +251,13 @@
     "deviceName": "Nombre del dispositivo",
     "currentRoom": "Sala actual",
     "connectionStatus": "Estado de conexión",
+    "theme": {
+      "title": "Tema",
+      "description": "Elige el tema de la interfaz",
+      "system": "Sistema",
+      "light": "Claro",
+      "dark": "Oscuro"
+    },
     "trustedDevices": "Dispositivos confiados",
     "trustedDevicesHint": "Los archivos de dispositivos confiados serán aceptados automáticamente",
     "noTrustedDevices": "No hay dispositivos confiados",

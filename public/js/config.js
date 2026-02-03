@@ -25,6 +25,7 @@ export const STORAGE_KEYS = {
 // Default Settings Configuration
 // =============================================================================
 export const DEFAULT_SETTINGS = {
+  theme: 'dark',                // 主题: system | light | dark
   allowRelayFallback: true,      // 是否允许中继降级
   relayFallbackTimeout: 5,       // 中继降级超时（秒）
   enablePrewarm: true,           // 是否启用连接预热

@@ -249,6 +249,13 @@
     "deviceName": "設備名稱",
     "currentRoom": "當前房間",
     "connectionStatus": "連接狀態",
+    "theme": {
+      "title": "主題",
+      "description": "選擇介面主題",
+      "system": "跟隨系統",
+      "light": "亮色",
+      "dark": "深色"
+    },
     "trustedDevices": "信任的設備",
     "trustedDevicesHint": "信任的設備發送文件時將自動接收",
     "noTrustedDevices": "暫無信任的設備",

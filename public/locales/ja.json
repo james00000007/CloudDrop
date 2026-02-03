@@ -248,6 +248,13 @@
     "deviceName": "デバイス名",
     "currentRoom": "現在のルーム",
     "connectionStatus": "接続状態",
+    "theme": {
+      "title": "テーマ",
+      "description": "外観テーマを選択",
+      "system": "システム",
+      "light": "ライト",
+      "dark": "ダーク"
+    },
     "trustedDevices": "信頼されたデバイス",
     "trustedDevicesHint": "信頼されたデバイスからのファイルは自動的に受け入れられます",
     "noTrustedDevices": "信頼されたデバイスがありません",

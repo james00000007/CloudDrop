@@ -250,6 +250,13 @@
     "deviceName": "Device Name",
     "currentRoom": "Current Room",
     "connectionStatus": "Connection Status",
+    "theme": {
+      "title": "Theme",
+      "description": "Choose interface theme",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
     "trustedDevices": "Trusted Devices",
     "trustedDevicesHint": "Files from trusted devices will be automatically accepted",
     "noTrustedDevices": "No trusted devices",

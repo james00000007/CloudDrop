@@ -35,3 +35,4 @@ dist/
 
 #claude
 .claude/
+.codex/environments/environment.toml

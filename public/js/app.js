@@ -39,6 +39,21 @@ class CloudDrop {
     // App settings
     this.settings = this.loadSettings();
 
+    // Theme handling
+    this.themeMediaQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    this.handleSystemThemeChange = (e) => {
+      if (this.settings.theme === 'system') {
+        this.applyTheme(e.matches ? 'dark' : 'light');
+      }
+    };
+    if (this.themeMediaQuery) {
+      if (this.themeMediaQuery.addEventListener) {
+        this.themeMediaQuery.addEventListener('change', this.handleSystemThemeChange);
+      } else if (this.themeMediaQuery.addListener) {
+        this.themeMediaQuery.addListener(this.handleSystemThemeChange);
+      }
+    }
+
     // Room password state
     this.roomPassword = null; // Room password (plaintext, only in memory)
     this.roomPasswordHash = null; // Password hash for server verification
@@ -77,6 +92,12 @@ class CloudDrop {
   updateSetting(key, value) {
     this.settings[key] = value;
     this.saveSettings();
+    if (key === 'theme') {
+      this.applyThemeSetting();
+      this.syncThemeToUI('modal');
+      this.syncThemeToUI('popover');
+      return;
+    }
     this.applySettingToWebRTC(key, value);
   }
 
@@ -115,6 +136,47 @@ class CloudDrop {
     this.applySettingToWebRTC('allowRelayFallback', this.settings.allowRelayFallback);
     this.applySettingToWebRTC('relayFallbackTimeout', this.settings.relayFallbackTimeout);
     this.applySettingToWebRTC('enablePrewarm', this.settings.enablePrewarm);
+  }
+
+  /**
+   * Apply theme setting to document
+   */
+  applyThemeSetting() {
+    const theme = this.settings.theme || 'system';
+    const resolvedTheme = this.resolveTheme(theme);
+    this.applyTheme(resolvedTheme);
+  }
+
+  /**
+   * Resolve theme to light/dark
+   */
+  resolveTheme(theme) {
+    if (theme === 'system') {
+      if (this.themeMediaQuery) {
+        return this.themeMediaQuery.matches ? 'dark' : 'light';
+      }
+      return 'dark';
+    }
+    return theme === 'light' ? 'light' : 'dark';
+  }
+
+  /**
+   * Apply the resolved theme
+   */
+  applyTheme(theme) {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+    root.style.colorScheme = theme;
+    this.updateThemeMetaColor(theme);
+  }
+
+  /**
+   * Update browser theme-color meta
+   */
+  updateThemeMetaColor(theme) {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) return;
+    meta.setAttribute('content', theme === 'dark' ? '#0f0f23' : '#f4f6f8');
   }
 
   /**
@@ -385,6 +447,9 @@ class CloudDrop {
   }
 
   async init() {
+    // Apply theme as early as possible
+    this.applyThemeSetting();
+
     // Initialize i18n first
     await i18n.init({ defaultLocale: 'zh' });
 
@@ -2827,6 +2892,26 @@ class CloudDrop {
       this.syncTrustedDevicesToUI('modal');
     });
 
+    // Theme controls - mobile
+    const themeInputsModal = document.querySelectorAll('input[name="theme-modal"]');
+    themeInputsModal.forEach((input) => {
+      input.addEventListener('change', (e) => {
+        if (!e.target.checked) return;
+        this.updateSetting('theme', e.target.value);
+        this.syncThemeToUI('popover');
+      });
+    });
+
+    // Theme controls - desktop popover
+    const themeInputsPopover = document.querySelectorAll('input[name="theme-popover"]');
+    themeInputsPopover.forEach((input) => {
+      input.addEventListener('change', (e) => {
+        if (!e.target.checked) return;
+        this.updateSetting('theme', e.target.value);
+        this.syncThemeToUI('modal');
+      });
+    });
+
     // 中继降级开关 - 移动端
     const relayFallbackToggle = document.getElementById('settingsRelayFallback');
     const relayTimeoutRow = document.getElementById('relayTimeoutRow');
@@ -2997,6 +3082,20 @@ class CloudDrop {
     // 通知开关
     const notificationsToggle = document.getElementById(target === 'popover' ? 'popoverNotifications' : 'settingsNotifications');
     if (notificationsToggle) notificationsToggle.checked = this.settings.enableNotifications;
+
+    // 主题切换
+    this.syncThemeToUI(target);
+  }
+
+  /**
+   * 同步主题选择到 UI
+   * @param {'popover'|'modal'} target - 目标 UI
+   */
+  syncThemeToUI(target) {
+    const groupName = target === 'popover' ? 'theme-popover' : 'theme-modal';
+    const theme = this.settings.theme || 'system';
+    const input = document.querySelector(`input[name="${groupName}"][value="${theme}"]`);
+    if (input) input.checked = true;
   }
 
   /**
@@ -3048,4 +3147,3 @@ class CloudDrop {
 // Initialize app
 const app = new CloudDrop();
 app.init().catch(console.error);
-
