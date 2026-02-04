@@ -34,7 +34,7 @@
 - 📱 **Progressive Web App** - Install as a native app on any device
 - 🔗 **Room Sharing** - Share a room code to connect with anyone, anywhere
 - 💬 **Secure Messaging** - Send encrypted text messages between devices
-- 🎨 **Beautiful UI** - Modern dark theme with glassmorphism and smooth animations
+- 🎨 **Beautiful UI** - Modern glassmorphism design with light/dark/system theme modes
 
 ### Advanced Features
 - 🔐 **Encrypted Rooms** - Create password-protected rooms with double encryption
